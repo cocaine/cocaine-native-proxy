@@ -135,7 +135,7 @@ proxy::on_enqueue::on_request(const network_request &req,
             try {
                 (*it->second)->enqueue(
                     m_event,
-                    cf::http_request_t {
+                    cf::http_request_t (
                         req.get_method(),
                         req.get_url(),
                         http_version,
@@ -144,7 +144,7 @@ proxy::on_enqueue::on_request(const network_request &req,
                             boost::asio::buffer_cast<const char*>(body),
                             boost::asio::buffer_size(body)
                         )
-                    }
+                    )
                 ).then(std::bind(&on_enqueue::on_resp_headers, shared_from_this(), ph::_1));
             } catch (...) {
                 get_reply()->send_error(network_reply::internal_server_error);
