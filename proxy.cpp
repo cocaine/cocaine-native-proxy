@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 #include <unistd.h>
+#include <csignal>
 
 using namespace ioremap::swarm;
 using namespace ioremap::thevoid;
@@ -247,5 +248,11 @@ proxy::on_enqueue::on_resp_close(cf::future<std::vector<cf::future<void>>>&) {
 int main(int argc,
          char **argv)
 {
+    // Block the deprecated signals.
+    sigset_t signals;
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGPIPE);
+    sigprocmask(SIG_BLOCK, &signals, nullptr);
+
     return run_server<proxy>(argc, argv);
 }
