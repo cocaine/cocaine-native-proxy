@@ -29,37 +29,37 @@ namespace cf = cocaine::framework;
 
 bool
 proxy::initialize(const rapidjson::Value &config) {
-	if (!config.HasMember("locator")) {
-		std::cerr << "'locator' field is missed";
-		return false;
-	}
+    if (!config.HasMember("locator")) {
+        std::cerr << "'locator' field is missed";
+        return false;
+    }
 
-	std::string locator = config["locator"].GetString();
+    std::string locator = config["locator"].GetString();
 
-	// kostyl-way!
-	size_t delim = locator.rfind(':');
-	if (delim == std::string::npos) {
+    // kostyl-way!
+    size_t delim = locator.rfind(':');
+    if (delim == std::string::npos) {
         std::cerr << "Bad format of locator's endpoint" << std::endl;
         return false;
-	}
+    }
 
-	std::string host = locator.substr(0, delim);
-	uint16_t port;
-	std::istringstream port_parser(locator.substr(delim + 1));
-	if (!(port_parser >> port)) {
+    std::string host = locator.substr(0, delim);
+    uint16_t port;
+    std::istringstream port_parser(locator.substr(delim + 1));
+    if (!(port_parser >> port)) {
         std::cerr << "Bad format of locator's endpoint" << std::endl;
         return false;
-	}
+    }
 
-	std::string logging_prefix = "native-proxy";
+    std::string logging_prefix = "native-proxy";
 
     if (config.HasMember("logging_prefix")) {
         logging_prefix = config["logging_prefix"].GetString();
     }
 
-	m_service_manager = cf::service_manager_t::create(
-	    cocaine::io::tcp::endpoint(host, port),
-	    cocaine::format("%s/%d", logging_prefix, getpid())
+    m_service_manager = cf::service_manager_t::create(
+        cocaine::io::tcp::endpoint(host, port),
+        cocaine::format("%s/%d", logging_prefix, getpid())
     );
 
     m_pool_size = 10;
@@ -74,22 +74,9 @@ proxy::initialize(const rapidjson::Value &config) {
         m_reconnect_timeout = config["reconnect_timeout"].GetUint();
     }
 
-	on_prefix<on_enqueue>("/");
+    on_prefix<on_enqueue>("/");
 
-	return true;
-}
-
-void
-emf(std::shared_ptr<std::string>, std::shared_ptr<ioremap::thevoid::reply_stream> s)
-{
-    s->close(boost::system::error_code());
-}
-
-void
-emf2(std::shared_ptr<ioremap::thevoid::reply_stream> r)
-{
-    std::shared_ptr<std::string> s(new std::string("govno"));
-    r->send_data(boost::asio::const_buffer(s->data(), s->size()), std::bind(&emf, s, r));
+    return true;
 }
 
 void
@@ -260,5 +247,5 @@ proxy::on_enqueue::on_resp_close(cf::future<std::vector<cf::future<void>>>&) {
 int main(int argc,
          char **argv)
 {
-	return run_server<proxy>(argc, argv);
+    return run_server<proxy>(argc, argv);
 }

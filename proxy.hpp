@@ -41,15 +41,15 @@ public:
     friend struct on_enqueue;
 
 public:
-	bool
-	initialize(const rapidjson::Value &config);
+    bool
+    initialize(const rapidjson::Value &config);
 
 private:
-	typedef std::map<std::string, std::shared_ptr<service_pool<cocaine::framework::app_service_t>>>
-	        clients_map_t;
+    typedef std::map<std::string, std::shared_ptr<service_pool<cocaine::framework::app_service_t>>>
+            clients_map_t;
 
-	size_t m_pool_size;
-	unsigned int m_reconnect_timeout;
+    size_t m_pool_size;
+    unsigned int m_reconnect_timeout;
 
     std::shared_ptr<cocaine::framework::service_manager_t> m_service_manager;
     clients_map_t m_services;

@@ -1,7 +1,6 @@
 #include "buffered_stream.hpp"
 
 #include <functional>
-#include <iostream>
 
 namespace ph = std::placeholders;
 
