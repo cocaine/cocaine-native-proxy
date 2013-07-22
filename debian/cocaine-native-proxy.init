@@ -53,7 +53,8 @@ do_stop()
         for pid in "${PIDS[@]}"
         do
             PIDFILE=$PID_PATH/$pid
-            start-stop-daemon -K -p $PIDFILE -u $USER -n cocaine-native-proxy
+            start-stop-daemon -K -p $PIDFILE
+            rm -f $PIDFILE
         done
     else
         echo "There are no working processes"
