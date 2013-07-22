@@ -1,0 +1,82 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          skeleton
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Example initscript
+# Description:       This file should be used to construct scripts to be
+#                    placed in /etc/init.d.
+### END INIT INFO
+
+# Author: Andrey Goryachev <andrey.goryachev@gmail.com>
+
+# Do NOT "set -e"
+
+# PATH should only include /usr/* if it runs after the mountnfs.sh script
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DAEMON=/usr/bin/cocaine-native-proxy
+PID_PATH=/var/run/cocaine-native-proxy
+USER=cocaine
+CONFIG_DIR=/etc/cocaine-native-proxy
+
+do_start()
+{   
+    cd $CONFIG_DIR
+    for conf in `/bin/ls *.conf 2>/dev/null`;
+    do
+       NAME=${conf%%.conf}
+       PIDFILE=$PID_PATH/$NAME.pid
+
+       echo -n "Start cocaine-native-proxy with config $conf and pid $PIDFILE"
+
+       ARGS=" -c $conf"
+       ulimit -n 65000; start-stop-daemon -S -p $PIDFILE -b -m -u $USER -d $CONFIG_DIR --exec $DAEMON -- $ARGS
+       
+       if [ $? -ne 0 ]; 
+       then
+             echo "FAIL"
+       else
+             echo "OK"
+       fi
+    done
+}
+
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+    PIDS=($(ls -1 $PID_PATH/ | grep .pid))
+    if [ ${#PIDS[@]} -gt 0 ]; then
+        for pid in "${PIDS[@]}"
+        do
+            PIDFILE=$PID_PATH/$pid
+            start-stop-daemon -K -p $PIDFILE -u $USER -n cocaine-native-proxy
+        done
+    else
+        echo "There are no working processes"
+    fi
+}
+
+
+case "$1" in
+  start)
+    do_start
+    ;;
+  stop)
+    do_stop
+    ;;
+  status)
+    ;;
+  restart|force-reload)
+    do_stop
+    do_start
+    ;;
+  *)
+    echo "Usage: $SCRIPTNAME {start|stop|status|restart}" >&2
+    exit 3
+    ;;
+esac
+

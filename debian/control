@@ -1,0 +1,22 @@
+Source: cocaine-native-proxy
+Section: utils
+Priority: extra
+Maintainer: Andrey Goryachev <bugsbunny@yandex-team.ru>
+Build-Depends: cmake, cdbs, debhelper (>= 7.0.13), cocaine-framework-native-dev, libthevoid-dev, libswarm-dev
+Standards-Version: 3.9.1
+Vcs-Git: git://github.com/andrusha97/cocaine-native-proxy.git
+Vcs-Browser: https://github.com/andrusha97/cocaine-native-proxy
+
+Package: cocaine-native-proxy
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Cocaine native proxy
+ Cocaine native proxy.
+
+Package: cocaine-native-proxy-dbg
+Architecture: any
+Section: debug
+Depends: ${shlibs:Depends}, ${misc:Depends}, cocaine-native-proxy (= ${binary:Version})
+Description: Cocaine native proxy - Debug Files
+ Cocaine native proxy debug files and symbols.
+

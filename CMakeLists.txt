@@ -44,3 +44,8 @@ TARGET_LINK_LIBRARIES(cocaine-native-proxy
 
 SET_TARGET_PROPERTIES(cocaine-native-proxy PROPERTIES
     COMPILE_FLAGS "-std=c++0x -W -Wall -Werror -pedantic")
+
+INSTALL(
+    TARGETS
+        cocaine-native-proxy
+    RUNTIME DESTINATION bin COMPONENT runtime)

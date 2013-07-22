@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+include /usr/share/cdbs/1/class/cmake.mk
+include /usr/share/cdbs/1/rules/debhelper.mk
+
+DEB_DBG_PACKAGES := cocaine-native-proxy-dbg
+
+install/cocaine-native-proxy::
+	install -d $(DEB_DESTDIR)etc/cocaine-native-proxy
+	install -m644 debian/cocaine-native-proxy.conf $(DEB_DESTDIR)etc/cocaine-native-proxy/default.conf
