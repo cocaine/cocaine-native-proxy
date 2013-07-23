@@ -161,36 +161,8 @@ service_pool<Service>::operator->() {
         // pass
     }
 
-    m_next = old_next;
-
-    do {
-        service_wrapper<Service> c = m_connections[m_next];
-        m_next = (m_next + 1) % m_connections.size();
-        switch (c->status()) {
-            case cocaine::framework::service_status::connected:
-                return c;
-            case cocaine::framework::service_status::disconnected:
-                c->async_reconnect();
-            default: break;
-        }
-    } while (m_next != old_next);
-
-    do {
-        service_wrapper<Service> c = m_connections[m_next];
-        m_next = (m_next + 1) % m_connections.size();
-        switch (c->status()) {
-            case cocaine::framework::service_status::connected:
-            case cocaine::framework::service_status::connecting:
-                return c;
-            case cocaine::framework::service_status::disconnected:
-                c->async_reconnect();
-            default: break;
-        }
-    } while (m_next != old_next);
-
-    throw cocaine::framework::service_error_t(
-        cocaine::framework::service_errc::wait_for_connection
-    );
+    m_next = (old_next + 1) % m_connections.size();
+    return m_connections[old_next];
 }
 
 }} // namespace cocaine::proxy

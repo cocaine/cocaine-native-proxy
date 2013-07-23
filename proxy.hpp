@@ -44,6 +44,8 @@ public:
     bool
     initialize(const rapidjson::Value &config);
 
+    ~proxy();
+
 private:
     typedef std::map<std::string, std::shared_ptr<service_pool<cocaine::framework::app_service_t>>>
             clients_map_t;

@@ -80,6 +80,10 @@ proxy::initialize(const rapidjson::Value &config) {
     return true;
 }
 
+proxy::~proxy() {
+    m_service_manager->stop();
+}
+
 void
 proxy::on_enqueue::on_request(const network_request &req,
                               const boost::asio::const_buffer &body)
