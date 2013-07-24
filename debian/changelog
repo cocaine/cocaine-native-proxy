@@ -1,3 +1,9 @@
+cocaine-native-proxy (0.10.5-1) unstable; urgency=low
+
+  * Improved service_pool and compatibility with last Native Framework.
+
+ -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Wed, 24 Jul 2013 22:35:22 +0400
+
 cocaine-native-proxy (0.10.5-0) unstable; urgency=low
 
   * Initial release.
