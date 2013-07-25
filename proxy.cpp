@@ -9,6 +9,7 @@
 #include <msgpack.hpp>
 
 #include <cocaine/traits/literal.hpp>
+#include <cocaine/asio/resolver.hpp>
 #include <cocaine/framework/handlers/http.hpp>
 
 #include <boost/system/linux_error.hpp>
@@ -59,7 +60,7 @@ proxy::initialize(const rapidjson::Value &config) {
     }
 
     m_service_manager = cf::service_manager_t::create(
-        cocaine::io::tcp::endpoint(host, port),
+        cocaine::io::resolver<cocaine::io::tcp>::query(host, port),
         cocaine::format("%s/%d", logging_prefix, getpid())
     );
 
