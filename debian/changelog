@@ -1,3 +1,9 @@
+cocaine-native-proxy (0.10.5-3) unstable; urgency=low
+
+  * Ability to specify hostname of the locator, not IP.
+
+ -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Thu, 25 Jul 2013 19:36:59 +0400
+
 cocaine-native-proxy (0.10.5-2) unstable; urgency=low
 
   * Service pool is more resistant to crash of cocaine.
