@@ -141,25 +141,40 @@ private:
 template<class Service>
 service_wrapper<Service>
 service_pool<Service>::operator->() {
+    // reconnect after timeout
+    try {
+        time_t now = time(0);
+        size_t reconnected = 0;
+        size_t max_reconnects = std::min(static_cast<size_t>(1), m_connections.size() / 3);
+
+        size_t old_next = m_next;
+        size_t it = old_next;
+
+        do {
+            std::unique_lock<std::mutex> lock(m_connections_lock);
+            if (m_next_reconnects[it] < now) {
+                m_next_reconnects[it] = now + m_reconnect_timeout + rand() % m_reconnect_timeout;
+                m_connections[it] = service_wrapper<Service>(m_service_constructor());
+                ++reconnected;
+            }
+            it = (it + 1) % m_connections.size();
+        } while (it != old_next && reconnected < max_reconnects);
+    } catch (...) {
+        // pass
+    }
+
+    // select connection to send request
     std::unique_lock<std::mutex> lock(m_connections_lock);
 
     size_t old_next = m_next;
 
-    time_t now = time(0);
-    size_t reconnected = 0;
-    size_t max_reconnects = std::min(static_cast<size_t>(1), m_connections.size() / 3);
-    try {
-        do {
-            if (m_next_reconnects[m_next] < now) {
-                m_connections[m_next] = service_wrapper<Service>(m_service_constructor());
-                m_next_reconnects[m_next] = now + m_reconnect_timeout + rand() % m_reconnect_timeout;
-                ++reconnected;
-            }
-            m_next = (m_next + 1) % m_connections.size();
-        } while (m_next != old_next && reconnected < max_reconnects);
-    } catch (...) {
-        // pass
-    }
+    do {
+        service_wrapper<Service> c = m_connections[m_next];
+        m_next = (m_next + 1) % m_connections.size();
+        if (c->status() == cocaine::framework::service_status::connected) {
+            return c;
+        }
+    } while (m_next != old_next);
 
     m_next = (old_next + 1) % m_connections.size();
     return m_connections[old_next];
