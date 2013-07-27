@@ -53,7 +53,7 @@ do_stop()
         for pid in "${PIDS[@]}"
         do
             PIDFILE=$PID_PATH/$pid
-            start-stop-daemon -K -p $PIDFILE
+            start-stop-daemon -K -p $PIDFILE --signal KILL
             rm -f $PIDFILE
         done
     else
