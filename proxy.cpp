@@ -60,7 +60,7 @@ proxy::initialize(const rapidjson::Value &config) {
     }
 
     m_service_manager = cf::service_manager_t::create(
-        cocaine::io::resolver<cocaine::io::tcp>::query(host, port),
+        cf::service_manager_t::endpoint_t(host, port),
         cocaine::format("%s/%d", logging_prefix, getpid())
     );
 
@@ -88,7 +88,7 @@ proxy::~proxy() {
     COCAINE_LOG_INFO(m_service_manager->get_system_logger(),
                      "Proxy will be stopped now.");
 
-    m_service_manager->stop();
+    m_service_manager.reset();
 }
 
 void
