@@ -194,11 +194,13 @@ proxy::on_enqueue::on_request(const network_request &req,
 
             // send request
             try {
+                auto uri = req.get_url();
+
                 (*it->second)->enqueue(
                     m_event,
                     cf::http_request_t (
                         req.get_method(),
-                        req.get_url(),
+                        uri.substr(std::min(end, uri.size())),
                         http_version,
                         cf::http_headers_t(req.get_headers()),
                         std::string (
