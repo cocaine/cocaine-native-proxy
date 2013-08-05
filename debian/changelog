@@ -1,3 +1,9 @@
+cocaine-native-proxy (0.10.6.1) unstable; urgency=low
+
+  * Remove application name and event from url.
+
+ -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Mon, 05 Aug 2013 12:11:56 +0400
+
 cocaine-native-proxy (0.10.6.0) unstable; urgency=low
 
   * Compatibility with Native Framework 0.10.6.0.
