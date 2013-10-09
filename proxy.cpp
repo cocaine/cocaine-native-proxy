@@ -31,27 +31,51 @@ namespace cf = cocaine::framework;
 
 bool
 proxy::initialize(const rapidjson::Value &config) {
-    if (!config.HasMember("locator")) {
-        std::cerr << "'locator' field is missed in config. You must specify locators as list of strings in format host:port.";
+    if (!config.HasMember("locators")) {
+        std::cerr << "'locators' field is missed in config. You should specify locators as a list of strings in format 'host:port'." << std::endl;
         return false;
     }
 
-    std::string locator = config["locator"].GetString();
+    auto& locators = config["locators"];
 
-    // kostyl-way!
-    size_t delim = locator.rfind(':');
-    if (delim == std::string::npos) {
-        std::cerr << "Bad format of locator's endpoint. Format: host:port." << std::endl;
+    if (!locators.IsArray()) {
+        std::cerr << "Locators must be specified as an array of endpoints." << std::endl;
         return false;
     }
 
-    std::string host = locator.substr(0, delim);
-    uint16_t port;
-    std::istringstream port_parser(locator.substr(delim + 1));
-    if (!(port_parser >> port)) {
-        std::cerr << "Bad format of locator's endpoint. Format: host:port." << std::endl;
+    std::vector<cf::service_manager_t::endpoint_t> unpacked_locators;
+
+    for (size_t i = 0; i < locators.Size(); ++i) {
+        if (!locators[i].IsString()) {
+            std::cerr << "Bad format of locator's endpoint. It must be a string in format 'host:port'." << std::endl;
+            return false;
+        }
+
+        std::string locator = locators[i].GetString();
+
+        // kostyl-way!
+        size_t delim = locator.rfind(':');
+        if (delim == std::string::npos) {
+            std::cerr << "Bad format of locator's endpoint. Format: host:port." << std::endl;
+            return false;
+        }
+
+        std::string host = locator.substr(0, delim);
+        uint16_t port;
+        std::istringstream port_parser(locator.substr(delim + 1));
+        if (!(port_parser >> port)) {
+            std::cerr << "Bad format of locator's endpoint. Format: host:port." << std::endl;
+            return false;
+        }
+
+        unpacked_locators.emplace_back(host, port);
+    }
+
+    if (unpacked_locators.empty()) {
+        std::cerr << "List of locators is empty. Specify some ones." << std::endl;
         return false;
     }
+
 
     std::string logging_prefix = "native-proxy";
 
@@ -60,7 +84,7 @@ proxy::initialize(const rapidjson::Value &config) {
     }
 
     m_service_manager = cf::service_manager_t::create(
-        cf::service_manager_t::endpoint_t(host, port),
+        unpacked_locators,
         cocaine::format("%s/%d", logging_prefix, getpid())
     );
 
