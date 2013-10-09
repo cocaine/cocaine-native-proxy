@@ -81,17 +81,18 @@ struct service_pool {
     service_pool(size_t size,
                  unsigned int reconnect_timeout,
                  std::shared_ptr<cocaine::framework::service_manager_t> manager,
+                 float request_timeout,
                  const Args&... args) :
         m_reconnect_timeout(reconnect_timeout),
         m_manager(manager),
-        m_service_constructor(std::bind(&service_pool::construct<Args...>, this, args...)),
+        m_service_constructor(std::bind(&service_pool::construct<Args...>, this, request_timeout, args...)),
         m_next(0)
     {
         m_connections.reserve(size);
         m_next_reconnects.reserve(size);
 
         for (size_t i = 0; i < size; ++i) {
-            m_connections.push_back(manager->get_service<Service>(args...));
+            m_connections.push_back(service_wrapper<Service>(m_service_constructor()));
         }
 
         time_t now = time(0);
@@ -123,9 +124,11 @@ struct service_pool {
 private:
     template<class... Args>
     std::shared_ptr<Service>
-    construct(const Args&... args) {
+    construct(float timeout, const Args&... args) {
         auto manager = m_manager.lock();
-        return manager->get_service<Service>(args...);
+        auto s = manager->get_service<Service>(args...);
+        s->set_timeout(timeout);
+        return s;
     }
 
 private:
