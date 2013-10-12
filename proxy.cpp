@@ -83,10 +83,7 @@ proxy::initialize(const rapidjson::Value &config) {
         logging_prefix = config["logging_prefix"].GetString();
     }
 
-    m_service_manager = cf::service_manager_t::create(
-        unpacked_locators,
-        cocaine::format("%s/%d", logging_prefix, getpid())
-    );
+    m_service_manager = cf::service_manager_t::create(unpacked_locators, logging_prefix);
 
     COCAINE_LOG_INFO(m_service_manager->get_system_logger(),
                      "Proxy has successfully started.");
