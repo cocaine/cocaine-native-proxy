@@ -17,10 +17,11 @@ Example config
     "backlog": 2048,
     "threads": 2,
     "application": {
-        "locator": "127.0.0.1:10053",
+        "locators": ["127.0.0.1:10053"],
         "logging_prefix": "cocaine-proxy-01",
         "service_pool": 10,
-        "reconnect_timeout": 180
+        "reconnect_timeout": 180,
+        "request_timeout": 5
     }
 }
 ```
