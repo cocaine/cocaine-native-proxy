@@ -1,3 +1,11 @@
+cocaine-native-proxy (0.11) unstable; urgency=low
+
+  * Support of timeouts.
+  * Support of multiple locators.
+  * Minor bugfixes.
+
+ -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Tue, 15 Oct 2013 19:01:25 +0400
+
 cocaine-native-proxy (0.10.6.1) unstable; urgency=low
 
   * Remove application name and event from url.

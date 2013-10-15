@@ -19,6 +19,8 @@ public:
     buffered_stream_t(std::shared_ptr<ioremap::thevoid::reply_stream> output,
                       std::shared_ptr<cocaine::framework::logger_t> logger);
 
+    ~buffered_stream_t();
+
     void
     set_headers(const ioremap::swarm::network_reply& headers);
 
