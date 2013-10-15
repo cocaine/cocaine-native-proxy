@@ -1,7 +1,6 @@
 #include "buffered_stream.hpp"
 
 #include <functional>
-#include <iostream>
 
 namespace ph = std::placeholders;
 
@@ -14,11 +13,6 @@ buffered_stream_t::buffered_stream_t(std::shared_ptr<ioremap::thevoid::reply_str
     m_closed(false)
 {
     // pass
-    std::cerr << "buffered stream created" << std::endl;
-}
-
-buffered_stream_t::~buffered_stream_t() {
-    std::cerr << "buffered stream destroy" << std::endl;
 }
 
 void
@@ -27,17 +21,13 @@ buffered_stream_t::set_headers(const ioremap::swarm::network_reply& headers) {
 
     // Just unification. One piece of data - one chunk in queue.
     m_chunks.emplace(std::string());
-    auto tmp = headers;
-    tmp.set_header("Connection-Type", "keep-alive");
     m_output->send_headers(headers,
                            boost::asio::const_buffer(),
                            std::bind(&buffered_stream_t::on_sent, shared_from_this(), ph::_1));
-    std::cerr << "buffered stream set headers" << std::endl;
 }
 
 void
 buffered_stream_t::push(std::string&& chunk) {
-    std::cerr << "buffered stream push " << chunk << std::endl;
     std::unique_lock<std::mutex> lock(m_send_lock);
     m_chunks.emplace(std::move(chunk));
     if (m_chunks.size() == 1) {
@@ -56,7 +46,6 @@ buffered_stream_t::close(const boost::system::error_code &err) {
     if (m_chunks.empty()) {
         m_output->close(m_err_code);
     }
-    std::cerr << "buffered stream close" << std::endl;
 }
 
 void
@@ -66,7 +55,6 @@ buffered_stream_t::on_sent(const boost::system::error_code& e) {
     }
 
     std::unique_lock<std::mutex> lock(m_send_lock);
-    std::cerr << "buffered stream on_sent " << m_chunks.front() << std::endl;
     m_chunks.pop();
     if (!m_chunks.empty()) {
         m_output->send_data(
