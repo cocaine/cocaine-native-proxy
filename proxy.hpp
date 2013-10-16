@@ -99,6 +99,7 @@ private:
 
     std::shared_ptr<cocaine::framework::service_manager_t> m_service_manager;
     clients_map_t m_services;
+    std::mutex m_services_mutex;
 };
 
 }} // namespace cocaine::proxy
