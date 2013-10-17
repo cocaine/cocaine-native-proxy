@@ -83,7 +83,13 @@ proxy::initialize(const rapidjson::Value &config) {
         logging_prefix = config["logging_prefix"].GetString();
     }
 
-    m_service_manager = cf::service_manager_t::create(unpacked_locators, logging_prefix);
+    size_t threads_num = get_threads_count();
+
+    if (config.HasMember("threads")) {
+        threads_num = config["threads"].GetUint();
+    }
+
+    m_service_manager = cf::service_manager_t::create(unpacked_locators, logging_prefix, threads_num);
 
     COCAINE_LOG_INFO(m_service_manager->get_system_logger(),
                      "Proxy has successfully started.");
