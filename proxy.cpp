@@ -83,7 +83,7 @@ proxy::initialize(const rapidjson::Value &config) {
         logging_prefix = config["logging_prefix"].GetString();
     }
 
-    size_t threads_num = 1;
+    size_t threads_num = get_threads_count();
 
     if (config.HasMember("threads")) {
         threads_num = config["threads"].GetUint();
