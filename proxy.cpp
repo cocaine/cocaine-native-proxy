@@ -114,6 +114,8 @@ proxy::initialize(const rapidjson::Value &config) {
 
     on_prefix<on_enqueue>("/");
 
+    set_statisitcs_handler(std::bind(&proxy::statistics, this));
+
     return true;
 }
 
@@ -462,6 +464,29 @@ proxy::response_stream::write_body(std::string&& packed) {
     }
 }
 
+std::map<std::string, std::string>
+proxy::statistics() const {
+    std::map<std::string, std::string> stat;
+
+    stat["memory"] = boost::lexical_cast<std::string>(m_service_manager->footprint());
+    stat["connections_count"] = boost::lexical_cast<std::string>(m_service_manager->connections_count());
+    stat["sessions_count"] = boost::lexical_cast<std::string>(m_service_manager->sessions_count());
+
+    {
+        std::lock_guard<std::mutex> guard(m_services_mutex);
+
+        stat["applications_count"] = boost::lexical_cast<std::string>(m_services.size());
+
+        size_t connected_clients = 0;
+        for (auto it = m_services.begin(); it != m_services.end(); ++it) {
+            connected_clients += it->second->connected_clients();
+        }
+
+        stat["connected_clients"] = boost::lexical_cast<std::string>(connected_clients);
+    }
+
+    return stat;
+}
 
 int main(int argc,
          char **argv)

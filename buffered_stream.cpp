@@ -29,6 +29,7 @@ buffered_stream_t::set_headers(const ioremap::swarm::network_reply& headers) {
 void
 buffered_stream_t::push(std::string&& chunk) {
     std::unique_lock<std::mutex> lock(m_send_lock);
+
     m_chunks.emplace(std::move(chunk));
     if (m_chunks.size() == 1) {
         m_output->send_data(
@@ -45,6 +46,8 @@ buffered_stream_t::close(const boost::system::error_code &err) {
     m_err_code = err;
     if (m_chunks.empty()) {
         m_output->close(m_err_code);
+        m_output.reset();
+        m_logger.reset();
     }
 }
 
@@ -63,5 +66,7 @@ buffered_stream_t::on_sent(const boost::system::error_code& e) {
         );
     } else if (m_closed) {
         m_output->close(m_err_code);
+        m_output.reset();
+        m_logger.reset();
     }
 }

@@ -62,6 +62,11 @@ struct service_wrapper {
         return m_killer->get();
     }
 
+    std::shared_ptr<Service const>
+    operator->() const {
+        return m_killer->get();
+    }
+
     void
     release() {
         m_killer->release();
@@ -121,6 +126,20 @@ struct service_pool {
     service_wrapper<Service>
     operator->();
 
+    size_t
+    connected_clients() const {
+        size_t result = 0;
+
+        std::unique_lock<std::mutex> lock(m_connections_lock);
+        for (auto it = m_connections.begin(); it != m_connections.end(); ++it) {
+            if ((*it)->status() == cocaine::framework::service_status::connected) {
+                ++result;
+            }
+        }
+
+        return result;
+    }
+
 private:
     template<class... Args>
     std::shared_ptr<Service>
@@ -138,7 +157,7 @@ private:
     std::vector<service_wrapper<Service>> m_connections;
     std::vector<time_t> m_next_reconnects;
     size_t m_next;
-    std::mutex m_connections_lock;
+    mutable std::mutex m_connections_lock;
 };
 
 template<class Service>
@@ -180,6 +199,7 @@ service_pool<Service>::operator->() {
     } while (m_next != old_next);
 
     m_next = (old_next + 1) % m_connections.size();
+
     return m_connections[old_next];
 }
 
