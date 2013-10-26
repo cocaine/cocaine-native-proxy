@@ -112,6 +112,7 @@ proxy::initialize(const rapidjson::Value &config) {
         m_request_timeout = config["request_timeout"].GetUint();
     }
 
+    on_prefix<on_ping>("/ping");
     on_prefix<on_enqueue>("/");
 
     set_statisitcs_handler(std::bind(&proxy::statistics, this));
@@ -124,6 +125,13 @@ proxy::~proxy() {
                      "Proxy will be stopped now.");
 
     m_service_manager.reset();
+}
+
+void
+proxy::on_ping::on_request(const network_request & /*request*/,
+                           const boost::asio::const_buffer & /*body*/)
+{
+    send_reply(network_reply::ok);
 }
 
 void

@@ -83,6 +83,15 @@ public:
     };
     friend struct on_enqueue;
 
+    struct on_ping :
+        public ioremap::thevoid::simple_request_stream<proxy>
+    {
+        virtual
+        void
+        on_request(const ioremap::swarm::network_request &req,
+                   const boost::asio::const_buffer &buffer);
+    };
+
 public:
     bool
     initialize(const rapidjson::Value &config);
