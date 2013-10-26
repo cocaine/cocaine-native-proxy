@@ -142,142 +142,153 @@ proxy::on_enqueue::on_request(const network_request &req,
                       "Request has accepted: %s",
                       req.get_url());
 
-    // Parse url to extract application name and event (format http://host/application/event[?/]...)
-    // a little more kostyl-way
-    size_t start = req.get_url().find('/');
-    if (start != std::string::npos) {
-        size_t end = req.get_url().find('/', start + 1);
-        if (end != std::string::npos) {
-            m_application = req.get_url().substr(start + 1, end - start - 1);
-            start = end;
-            end = std::min(req.get_url().find('/', start + 1),
-                           req.get_url().find('?', start + 1));
-            m_event = req.get_url().substr(start + 1, end - start - 1);
+    bool destionation_found = false;
 
-            COCAINE_LOG_DEBUG(get_server()->m_service_manager->get_system_logger(),
-                              "Request '%s' will be sent to application '%s' with event '%s'.",
-                              req.get_url(),
-                              m_application,
-                              m_event);
+    std::string uri;
 
+    auto app = req.try_header("X-Cocaine-Service");
+    auto event = req.try_header("X-Cocaine-Event");
+    if (app && event) {
+        m_application = std::move(*app);
+        m_event = std::move(*event);
+        uri = req.get_url();
+        destionation_found = true;
+    } else {
+        // Parse url to extract application name and event (in format http://host/application/event[?/]...).
+        size_t start = req.get_url().find('/');
+        if (start != std::string::npos) {
+            size_t end = req.get_url().find('/', start + 1);
+            if (end != std::string::npos) {
+                m_application = req.get_url().substr(start + 1, end - start - 1);
+                start = end;
+                end = std::min(req.get_url().find('/', start + 1),
+                               req.get_url().find('?', start + 1));
+                m_event = req.get_url().substr(start + 1, end - start - 1);
+                uri = req.get_url().substr(std::min(end, req.get_url().size()));
+                destionation_found = true;
+            }
+        }
+    }
+
+    if (destionation_found) {
+        COCAINE_LOG_DEBUG(get_server()->m_service_manager->get_system_logger(),
+                          "Request '%s' will be sent to application '%s' with event '%s'.",
+                          req.get_url(),
+                          m_application,
+                          m_event);
+
+        proxy::clients_map_t::iterator it;
+        { // critical section
+            std::lock_guard<std::mutex> guard(get_server()->m_services_mutex);
+            it = get_server()->m_services.find(m_application);
+
+            // Create connection to the application if one doesn't exist
+            if (it == get_server()->m_services.end()) {
+                try {
+                    it = get_server()->m_services.insert(std::make_pair(
+                        m_application,
+                        std::make_shared<service_pool<cf::app_service_t>>(
+                            get_server()->m_pool_size,
+                            get_server()->m_reconnect_timeout,
+                            get_server()->m_service_manager,
+                            get_server()->m_request_timeout,
+                            m_application
+                        )
+                    )).first;
+                } catch (const cf::service_error_t& e) {
+                    if (e.code().category() == cf::service_client_category() &&
+                        e.code().value() == static_cast<int>(cf::service_errc::not_found))
+                    {
+                        get_reply()->send_error(network_reply::not_found);
+
+                        COCAINE_LOG_INFO(get_server()->m_service_manager->get_system_logger(),
+                                         "Application '%s' not found in the cloud. Url - '%s'.",
+                                         m_application,
+                                         req.get_url());
+                    } else if (e.code().category() == cf::service_client_category() &&
+                               e.code().value() == static_cast<int>(cf::service_errc::not_connected))
+                    {
+                        get_reply()->send_error(network_reply::bad_gateway);
+
+                        COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
+                                            "Unable to connect to the locator. How have i logged it? WTF?!");
+                    } else {
+                        get_reply()->send_error(network_reply::internal_server_error);
+
+                        COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
+                                            "Error has occurred while connecting to application '%s' (url - '%s'): %s; code - %d",
+                                            m_application,
+                                            req.get_url(),
+                                            e.what(),
+                                            e.code().value());
+                    }
+
+                    return;
+                } catch (const std::exception& e) {
+                    get_reply()->send_error(network_reply::internal_server_error);
+
+                    COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
+                                        "Error has occurred while connecting to application '%s' (url - '%s'): %s",
+                                        m_application,
+                                        req.get_url(),
+                                        e.what());
+
+                    return;
+                } catch (...) {
+                    get_reply()->send_error(network_reply::internal_server_error);
+
+                    COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
+                                        "Unknown error has occurred while connecting to application '%s' (url - '%s')",
+                                        m_application,
+                                        req.get_url());
+
+                    return;
+                }
+            }
+        } // critical section
+
+        // send request
+        try {
             std::string http_version = cocaine::format("%d.%d",
                                                        req.get_http_major_version(),
                                                        req.get_http_minor_version());
 
-            proxy::clients_map_t::iterator it;
-            { // critical section
-                std::lock_guard<std::mutex> guard(get_server()->m_services_mutex);
-                it = get_server()->m_services.find(m_application);
-
-                // Create connection to the application if one doesn't exist
-                if (it == get_server()->m_services.end()) {
-                    try {
-                        it = get_server()->m_services.insert(std::make_pair(
-                            m_application,
-                            std::make_shared<service_pool<cf::app_service_t>>(
-                                get_server()->m_pool_size,
-                                get_server()->m_reconnect_timeout,
-                                get_server()->m_service_manager,
-                                get_server()->m_request_timeout,
-                                m_application
-                            )
-                        )).first;
-                    } catch (const cf::service_error_t& e) {
-                        if (e.code().category() == cf::service_client_category() &&
-                            e.code().value() == static_cast<int>(cf::service_errc::not_found))
-                        {
-                            get_reply()->send_error(network_reply::not_found);
-
-                            COCAINE_LOG_INFO(get_server()->m_service_manager->get_system_logger(),
-                                             "Application '%s' not found in the cloud. Url - '%s'.",
-                                             m_application,
-                                             req.get_url());
-                        } else if (e.code().category() == cf::service_client_category() &&
-                                   e.code().value() == static_cast<int>(cf::service_errc::not_connected))
-                        {
-                            get_reply()->send_error(network_reply::bad_gateway);
-
-                            COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
-                                                "Unable to connect to the locator. How have i logged it? WTF?!");
-                        } else {
-                            get_reply()->send_error(network_reply::internal_server_error);
-
-                            COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
-                                                "Error has occurred while connecting to application '%s' (url - '%s'): %s; code - %d",
-                                                m_application,
-                                                req.get_url(),
-                                                e.what(),
-                                                e.code().value());
-                        }
-
-                        return;
-                    } catch (const std::exception& e) {
-                        get_reply()->send_error(network_reply::internal_server_error);
-
-                        COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
-                                            "Error has occurred while connecting to application '%s' (url - '%s'): %s",
-                                            m_application,
-                                            req.get_url(),
-                                            e.what());
-
-                        return;
-                    } catch (...) {
-                        get_reply()->send_error(network_reply::internal_server_error);
-
-                        COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
-                                            "Unknown error has occurred while connecting to application '%s' (url - '%s')",
-                                            m_application,
-                                            req.get_url());
-
-                        return;
-                    }
-                }
-            } // critical section
-
-            // send request
-            try {
-                auto uri = req.get_url();
-
-                (*it->second)->enqueue(
-                    m_event,
-                    cf::http_request_t (
-                        req.get_method(),
-                        uri.substr(std::min(end, uri.size())),
-                        http_version,
-                        cf::http_headers_t(req.get_headers()),
-                        std::string (
-                            boost::asio::buffer_cast<const char*>(body),
-                            boost::asio::buffer_size(body)
-                        )
+            (*it->second)->enqueue(
+                m_event,
+                cf::http_request_t (
+                    req.get_method(),
+                    uri,
+                    http_version,
+                    cf::http_headers_t(req.get_headers()),
+                    std::string (
+                        boost::asio::buffer_cast<const char*>(body),
+                        boost::asio::buffer_size(body)
                     )
-                ).redirect(std::make_shared<proxy::response_stream>(shared_from_this()));
-            } catch (const std::exception& e) {
-                get_reply()->send_error(network_reply::internal_server_error);
+                )
+            ).redirect(std::make_shared<proxy::response_stream>(shared_from_this()));
+        } catch (const std::exception& e) {
+            get_reply()->send_error(network_reply::internal_server_error);
 
-                COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
-                                    "Error has occurred while enqueue event '%s' to application '%s': %s",
-                                    m_event,
-                                    m_application,
-                                    e.what());
-            } catch (...) {
-                get_reply()->send_error(network_reply::internal_server_error);
+            COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
+                                "Error has occurred while enqueue event '%s' to application '%s': %s",
+                                m_event,
+                                m_application,
+                                e.what());
+        } catch (...) {
+            get_reply()->send_error(network_reply::internal_server_error);
 
-                COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
-                                    "Unknown error has occurred while enqueue event '%s' to application '%s'",
-                                    m_event,
-                                    m_application);
-            }
-
-            // Prepend sending of error in the bottom of method!
-            return;
+            COCAINE_LOG_WARNING(get_server()->m_service_manager->get_system_logger(),
+                                "Unknown error has occurred while enqueue event '%s' to application '%s'",
+                                m_event,
+                                m_application);
         }
+    } else {
+        COCAINE_LOG_INFO(get_server()->m_service_manager->get_system_logger(),
+                         "Unable to extract destination from headers or from url '%s'.",
+                         req.get_url());
+
+        get_reply()->send_error(network_reply::not_found);
     }
-
-    COCAINE_LOG_INFO(get_server()->m_service_manager->get_system_logger(),
-                     "Unable to parse URL '%s'.",
-                     req.get_url());
-
-    get_reply()->send_error(network_reply::not_found);
 }
 
 proxy::response_stream::response_stream(const std::shared_ptr<on_enqueue>& req) :
@@ -434,6 +445,8 @@ proxy::response_stream::write_headers(std::string&& packed) {
             m_chunked = true;
             reply.set_header("Transfer-Encoding", "chunked");
         }
+
+        reply.set_header("X-Powered-By", "Cocaine");
 
         m_buffered = std::make_shared<buffered_stream_t>(
             m_request->get_reply(),
