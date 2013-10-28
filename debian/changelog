@@ -2,6 +2,9 @@ cocaine-native-proxy (0.11) unstable; urgency=low
 
   * Support of timeouts.
   * Support of multiple locators.
+  * Support of multiple cocaine threads. You don't need several native proxies behind one nginx anymore.
+  * Helpful monitorings are added.
+  * The proxy now can determine application and event via headers.
   * Minor bugfixes.
 
  -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Tue, 15 Oct 2013 19:01:25 +0400
