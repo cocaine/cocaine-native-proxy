@@ -2,7 +2,19 @@ Cocaine Native Proxy
 ====================
 
 This proxy provides HTTP interface to a Cocaine cloud.
-It selects an application and an event based on headers "X-Cocaine-Service" and "X-Cocaine-Event" or, if some of these headers are ommited, then based on URL (using format http://host/app/event...).
+
+It selects an application and an event based on headers `X-Cocaine-Service` and `X-Cocaine-Event` or, if some of these headers are ommited, then based on URL (using format `http://host/app/event...`).
+
+Building
+========
+
+Just run:
+<pre>
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ./
+make
+</pre>
+
+You need [Cocaine Native Framework](https://github.com/cocaine/cocaine-framework-native), [Cocaine](https://github.com/cocaine/cocaine-core) development files and [Swarm](https://github.com/reverbrain/swarm) to build the proxy.
 
 Example config
 ==============
@@ -26,14 +38,3 @@ Example config
     }
 }
 ```
-
-Building
-========
-
-Just run:
-<pre>
-cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ./
-make
-</pre>
-
-You need [Cocaine Native Framework](https://github.com/cocaine/cocaine-framework-native), [Cocaine](https://github.com/cocaine/cocaine-core) development files and [Swarm](https://github.com/reverbrain/swarm) to build the proxy.
