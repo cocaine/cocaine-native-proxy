@@ -16,6 +16,17 @@ make
 
 You need [Cocaine Native Framework](https://github.com/cocaine/cocaine-framework-native), [Cocaine](https://github.com/cocaine/cocaine-core) development files and [Swarm](https://github.com/reverbrain/swarm) to build the proxy.
 
+Usage
+=====
+
+Run the proxy as follows:
+<pre>
+cocaine-native-proxy -c &lt;config&gt;
+</pre>
+
+Or if you use init-script from `debian/` folder then just place your config to `/etc/cocaine-native-proxy/` and restart the proxy with command `sudo service cocaine-native-proxy restart`.
+Your config must have extension `*.conf`.
+
 Example config
 ==============
 
