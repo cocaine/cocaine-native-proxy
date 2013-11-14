@@ -49,3 +49,12 @@ Example config
     }
 }
 ```
+
+* `endpoints` &mdash; endpoints on which the proxy will listen for requests.
+* `monitor-port` &mdash; the port to retrieve monitoring information. Just try the command `echo i | nc 127.0.0.1 20000`.
+* `threads` &mdash; how many threads the proxy will run to handle requests. The proxy will run the same number of threads to communicate with Cocaine cloud.
+* `locators` &mdash; just list of entrypoints to your cloud. Most time the proxy will use first locator in the list, but if it is dead then the proxy will use some other one.
+* The proxy will write logs to the locator with `logging_prefix` source name.
+* `service_pool` &mdash; how many connections the proxy will create to each application. I recomend to specify at least 3 connections to improve balancing and reduce impact of unstable network.
+* The proxy will reconnect each connection every `reconnect_timeout` seconds (to rebalance requests to new nodes for examle).
+* If an application doesn't reply on a request for `request_timeout` seconds then the proxy drops the request and replies with 504 code.
