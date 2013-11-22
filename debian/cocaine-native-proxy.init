@@ -24,6 +24,11 @@ CONFIG_DIR=/etc/cocaine-native-proxy
 do_start()
 {   
     cd $CONFIG_DIR
+    if [ ! -d $PID_PATH ]; then
+        mkdir $PID_PATH
+        chmod 0755 $PID_PATH
+    fi
+
     for conf in `/bin/ls *.conf 2>/dev/null`;
     do
        NAME=${conf%%.conf}
