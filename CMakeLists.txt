@@ -8,7 +8,7 @@ FIND_PACKAGE(Boost 1.40.0 REQUIRED COMPONENTS system)
 INCLUDE(cmake/locate_library.cmake)
 
 LOCATE_LIBRARY(LIBFRAMEWORK "cocaine/framework/service.hpp" "cocaine-framework")
-LOCATE_LIBRARY(LIBSWARM "swarm/networkmanager.h" "swarm")
+LOCATE_LIBRARY(LIBSWARM "swarm/http_response.hpp" "swarm")
 LOCATE_LIBRARY(LIBTHEVOID "thevoid/server.hpp" "thevoid")
 LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
 LOCATE_LIBRARY(LIBMSGPACK "msgpack.hpp" "msgpack")
@@ -30,8 +30,7 @@ LINK_DIRECTORIES(
     ${LIBTHEVOID_LIBRARY_DIRS})
 
 ADD_EXECUTABLE(cocaine-native-proxy
-    proxy
-    buffered_stream)
+    proxy)
 
 TARGET_LINK_LIBRARIES(cocaine-native-proxy
     cocaine-framework
@@ -40,7 +39,8 @@ TARGET_LINK_LIBRARIES(cocaine-native-proxy
     thevoid
     ev
     msgpack
-    boost_system)
+    boost_system
+    -pthread)
 
 SET_TARGET_PROPERTIES(cocaine-native-proxy PROPERTIES
     COMPILE_FLAGS "-std=c++0x -W -Wall -Werror -pedantic")
