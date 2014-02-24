@@ -1,3 +1,10 @@
+cocaine-native-proxy (0.11.0.2) unstable; urgency=low
+
+  * Create user in postinst.
+  * Fix compatability of initscript with sh.
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Mon, 24 Feb 2014 13:31:22 +0400
+
 cocaine-native-proxy (0.11.0.1) unstable; urgency=low
 
   * Fixed init script.

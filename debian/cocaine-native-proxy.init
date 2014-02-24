@@ -53,13 +53,12 @@ do_start()
 #
 do_stop()
 {
-    PIDS=($(ls -1 $PID_PATH/ | grep .pid))
+    PIDS=$(ls -1 $PID_PATH/ | grep .pid)
     if [ ${#PIDS[@]} -gt 0 ]; then
-        for pid in "${PIDS[@]}"
+        for PIDFILE in $PID_PATH/*.pid
         do
-            PIDFILE=$PID_PATH/$pid
-            start-stop-daemon -K -p $PIDFILE --signal KILL
-            rm -f $PIDFILE
+            start-stop-daemon -K -p "$PIDFILE" --signal KILL
+            rm -f "$PIDFILE"
         done
     else
         echo "There are no working processes"
