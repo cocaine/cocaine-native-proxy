@@ -162,7 +162,7 @@ proxy::on_enqueue::on_request(const network_request &req,
                       "Request has accepted: %s",
                       req.get_url());
 
-    bool destionation_found = false;
+    bool destination_found = false;
 
     std::string uri;
 
@@ -172,7 +172,7 @@ proxy::on_enqueue::on_request(const network_request &req,
         m_application = std::move(*app);
         m_event = std::move(*event);
         uri = req.get_url();
-        destionation_found = true;
+        destination_found = true;
     } else {
         // Parse url to extract application name and event (in format http://host/application/event[?/]...).
         size_t start = req.get_url().find('/');
@@ -185,12 +185,12 @@ proxy::on_enqueue::on_request(const network_request &req,
                                req.get_url().find('?', start + 1));
                 m_event = req.get_url().substr(start + 1, end - start - 1);
                 uri = req.get_url().substr(std::min(end, req.get_url().size()));
-                destionation_found = true;
+                destination_found = true;
             }
         }
     }
 
-    if (destionation_found) {
+    if (destination_found) {
         COCAINE_LOG_DEBUG(get_server()->m_service_manager->get_system_logger(),
                           "Request '%s' will be sent to application '%s' with event '%s'.",
                           req.get_url(),
