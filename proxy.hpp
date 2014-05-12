@@ -22,7 +22,6 @@
 #define COCAINE_NATIVE_PROXY_HPP
 
 #include "service_pool.hpp"
-#include "buffered_stream.hpp"
 #include <cocaine/framework/services/app.hpp>
 #include <thevoid/server.hpp>
 
@@ -64,9 +63,10 @@ public:
             return m_closed;
         }
 
+        void on_error(const boost::system::error_code &err);
+
     private:
         std::shared_ptr<on_enqueue> m_request;
-        std::shared_ptr<buffered_stream_t> m_buffered;
 
         bool m_chunked;
         size_t m_content_length;
@@ -84,7 +84,7 @@ public:
 
         virtual
         void
-        on_request(const ioremap::swarm::network_request &req,
+        on_request(const ioremap::swarm::http_request &req,
                    const boost::asio::const_buffer &buffer);
 
         const std::string&
@@ -108,7 +108,7 @@ public:
     {
         virtual
         void
-        on_request(const ioremap::swarm::network_request &req,
+        on_request(const ioremap::swarm::http_request &req,
                    const boost::asio::const_buffer &buffer);
     };
 
@@ -119,7 +119,7 @@ public:
     ~proxy();
 
     std::map<std::string, std::string>
-    statistics() const;
+    get_statistics() const;
 
 private:
     typedef std::map<std::string, std::shared_ptr<service_pool<cocaine::framework::app_service_t>>>
