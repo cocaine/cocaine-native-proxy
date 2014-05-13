@@ -141,6 +141,7 @@ proxy::~proxy() {
     COCAINE_LOG_INFO(m_service_manager->get_system_logger(),
                      "Proxy will be stopped now.");
 
+    m_services.clear();
     m_service_manager.reset();
 }
 
