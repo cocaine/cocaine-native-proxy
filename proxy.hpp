@@ -55,7 +55,12 @@ public:
 
         virtual
         void
-        close();
+        close() {
+            close(boost::system::error_code());
+        }
+
+        void
+        close(const boost::system::error_code& ec);
 
         virtual
         bool

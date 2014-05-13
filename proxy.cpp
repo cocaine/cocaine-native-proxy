@@ -424,11 +424,13 @@ proxy::response_stream::error(const std::exception_ptr& e) {
 }
 
 void
-proxy::response_stream::close() {
+proxy::response_stream::close(const boost::system::error_code& ec) {
     if (!closed()) {
         m_closed = true;
 
-        if (m_body) {
+        if (ec) {
+            m_request->get_reply()->close(ec);
+        } else if (m_body) {
             if (m_chunked) {
                 m_request->send_data(std::string("0\r\n\r\n"),
                                      std::bind(&reply_stream::close, m_request->get_reply(), std::placeholders::_1));
@@ -448,11 +450,12 @@ proxy::response_stream::close() {
     }
 }
 
-void proxy::response_stream::on_error(const boost::system::error_code &err)
-{
-    if (err) {
+void proxy::response_stream::on_error(const boost::system::error_code &ec) {
+    if (ec) {
         COCAINE_LOG_INFO(m_request->server()->m_service_manager->get_system_logger(),
-                         "Error has occurred while sending response: %s", err.message());
+                         "Error has occurred while sending response: %s", ec.message());
+    
+        close(ec);
     }
 }
 
