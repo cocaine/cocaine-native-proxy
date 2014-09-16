@@ -1,3 +1,9 @@
+cocaine-native-proxy (0.11.2.0) unstable; urgency=low
+
+  * Move to TheVoid 0.6.
+
+ -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Tue, 16 Sep 2014 21:13:10 +0400
+
 cocaine-native-proxy (0.11.1.0) unstable; urgency=low
 
   * Bump version to build with Native Framework 0.11.1.0.
