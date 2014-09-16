@@ -321,18 +321,21 @@ proxy::response_stream::response_stream(const std::shared_ptr<on_enqueue>& req) 
 
 void
 proxy::response_stream::write(std::string&& chunk) {
+    std::unique_lock<std::mutex> guard(m_access_mutex);
     if (!closed()) {
         if (!m_body) {
-            write_headers(std::move(chunk));
+            write_headers(std::move(chunk), guard);
             m_body = true;
         } else {
-            write_body(std::move(chunk));
+            write_body(std::move(chunk), guard);
         }
     }
 }
 
 void
-proxy::response_stream::error(const std::exception_ptr& e) {
+proxy::response_stream::error(const std::exception_ptr& e,
+                              const std::unique_lock<std::mutex>& guard)
+{
     if (!closed()) {
         if (!m_body) {
             try {
@@ -419,12 +422,14 @@ proxy::response_stream::error(const std::exception_ptr& e) {
                                     e.what());
             }
         }
-        close();
+        close(boost::system::error_code(), guard);
     }
 }
 
 void
-proxy::response_stream::close(const boost::system::error_code& ec) {
+proxy::response_stream::close(const boost::system::error_code& ec,
+                              const std::unique_lock<std::mutex>&)
+{
     if (!closed()) {
         m_closed = true;
 
@@ -454,13 +459,16 @@ void proxy::response_stream::on_error(const boost::system::error_code &ec) {
     if (ec) {
         COCAINE_LOG_INFO(m_request->server()->m_service_manager->get_system_logger(),
                          "Error has occurred while sending response: %s", ec.message());
-    
-        close(ec);
+
+        std::unique_lock<std::mutex> guard(m_access_mutex);
+        close(ec, guard);
     }
 }
 
 void
-proxy::response_stream::write_headers(std::string&& packed) {
+proxy::response_stream::write_headers(std::string&& packed,
+                                      const std::unique_lock<std::mutex>& guard)
+{
     try {
         int code;
         cf::http_headers_t headers;
@@ -483,12 +491,14 @@ proxy::response_stream::write_headers(std::string&& packed) {
         m_request->send_headers(std::move(reply),
                                 std::bind(&response_stream::on_error, shared_from_this(), std::placeholders::_1));
     } catch (const std::exception& e) {
-        error(std::current_exception());
+        error(std::current_exception(), guard);
     }
 }
 
 void
-proxy::response_stream::write_body(std::string&& packed) {
+proxy::response_stream::write_body(std::string&& packed,
+                                   const std::unique_lock<std::mutex>& guard)
+{
     try {
         std::string chunk = cf::unpack<std::string>(packed);
         if (chunk.size() != 0) {
@@ -513,7 +523,7 @@ proxy::response_stream::write_body(std::string&& packed) {
             }
         }
     } catch (const std::exception& e) {
-        error(std::current_exception());
+        error(std::current_exception(), guard);
     }
 }
 

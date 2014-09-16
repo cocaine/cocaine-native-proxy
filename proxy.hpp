@@ -43,24 +43,19 @@ public:
         void
         write(std::string&& chunk);
 
-        void
-        write_headers(std::string&& packed);
-
-        void
-        write_body(std::string&& packed);
-
         virtual
         void
-        error(const std::exception_ptr& e);
+        error(const std::exception_ptr& e) {
+            std::unique_lock<std::mutex> guard(m_access_mutex);
+            error(e, guard);
+        }
 
         virtual
         void
         close() {
-            close(boost::system::error_code());
+            std::unique_lock<std::mutex> guard(m_access_mutex);
+            close(boost::system::error_code(), guard);
         }
-
-        void
-        close(const boost::system::error_code& ec);
 
         virtual
         bool
@@ -68,7 +63,21 @@ public:
             return m_closed;
         }
 
-        void on_error(const boost::system::error_code &err);
+    private:
+        void
+        write_headers(std::string&& packed, const std::unique_lock<std::mutex>&);
+
+        void
+        write_body(std::string&& packed, const std::unique_lock<std::mutex>&);
+
+        void
+        error(const std::exception_ptr& e, const std::unique_lock<std::mutex>&);
+
+        void
+        close(const boost::system::error_code& ec, const std::unique_lock<std::mutex>&);
+
+        void
+        on_error(const boost::system::error_code &err);
 
     private:
         std::shared_ptr<on_enqueue> m_request;
@@ -78,6 +87,8 @@ public:
         bool m_body;
 
         std::atomic<bool> m_closed;
+
+        std::mutex m_access_mutex;
     };
     friend struct response_stream;
 
