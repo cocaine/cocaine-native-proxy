@@ -312,6 +312,7 @@ proxy::on_enqueue::on_request(const http_request &req,
 }
 
 proxy::response_stream::response_stream(const std::shared_ptr<on_enqueue>& req) :
+    m_logger(req->server()->m_service_manager->get_system_logger()),
     m_request(req),
     m_body(false),
     m_closed(false)
@@ -457,8 +458,10 @@ proxy::response_stream::close(const boost::system::error_code& ec,
 
 void proxy::response_stream::on_error(const boost::system::error_code &ec) {
     if (ec) {
-        COCAINE_LOG_INFO(m_request->server()->m_service_manager->get_system_logger(),
-                         "Error has occurred while sending response: %s", ec.message());
+        auto logger = m_logger.lock();
+        if (logger) {
+            COCAINE_LOG_INFO(logger, "Error occurred while sending response: %s", ec.message());
+        }
 
         std::unique_lock<std::mutex> guard(m_access_mutex);
         close(ec, guard);

@@ -80,6 +80,7 @@ public:
         on_error(const boost::system::error_code &err);
 
     private:
+        std::weak_ptr<cocaine::framework::logger_t> m_logger;
         std::shared_ptr<on_enqueue> m_request;
 
         bool m_chunked;
