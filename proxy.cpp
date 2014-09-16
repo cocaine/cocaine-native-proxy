@@ -169,7 +169,7 @@ proxy::on_enqueue::on_request(const http_request &req,
     if (app && event) {
         m_application = std::move(*app);
         m_event = std::move(*event);
-        uri = req.url().path();
+        uri = req.url().original();
         destination_found = true;
     } else {
         // Parse url to extract application name and event (in format http://host/application/event[?/]...).
