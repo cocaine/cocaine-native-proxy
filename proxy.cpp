@@ -435,13 +435,18 @@ proxy::response_stream::close(const boost::system::error_code& ec,
         m_closed = true;
 
         if (ec) {
-            m_request->get_reply()->close(ec);
+            m_request->send_data(std::string(),
+                                 std::bind(&reply_stream::close, m_request->get_reply(), ec));
         } else if (m_body) {
             if (m_chunked) {
                 m_request->send_data(std::string("0\r\n\r\n"),
                                      std::bind(&reply_stream::close, m_request->get_reply(), std::placeholders::_1));
             } else if (m_content_length != 0) {
-                m_request->get_reply()->close(boost::system::error_code(boost::system::linux_error::remote_io_error));
+                m_request->send_data(std::string(), std::bind(
+                    &reply_stream::close,
+                    m_request->get_reply(),
+                    boost::system::error_code(boost::system::linux_error::remote_io_error)
+                ));
                 COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
                                     "Application '%s' has returned on event '%s' less then 'content-length'",
                                     m_request->app(),
@@ -450,6 +455,12 @@ proxy::response_stream::close(const boost::system::error_code& ec,
                 m_request->send_data(std::string(),
                                      std::bind(&reply_stream::close, m_request->get_reply(), std::placeholders::_1));
             }
+        } else {
+            m_request->send_data(std::string(), std::bind(
+                &reply_stream::close,
+                m_request->get_reply(),
+                boost::system::error_code(boost::system::linux_error::remote_io_error)
+            ));
         }
 
         m_request.reset();
