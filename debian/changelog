@@ -1,3 +1,10 @@
+cocaine-native-proxy (0.11.2.1) unstable; urgency=low
+
+  * Fixed a leak of client connections.
+  * The proxy correctly finishes responses now.
+
+ -- Andrey Goryachev <bugsbunny@yandex-team.ru>  Tue, 30 Sep 2014 14:55:35 +0400
+
 cocaine-native-proxy (0.11.2.0) unstable; urgency=low
 
   * Move to TheVoid 0.6.
