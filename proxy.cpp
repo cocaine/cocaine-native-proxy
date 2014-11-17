@@ -132,7 +132,6 @@ proxy::initialize(const rapidjson::Value &config) {
         m_request_timeout = config["request_timeout"].GetUint();
     }
 
-    on_prefix<on_ping>("/ping");
     on_prefix<on_enqueue>("/");
 
     set_statisitcs_handler(std::bind(&proxy::statistics, this));
@@ -148,21 +147,12 @@ proxy::~proxy() {
 }
 
 void
-proxy::on_ping::on_request(const network_request & /*request*/,
-                           const boost::asio::const_buffer & /*body*/)
-{
-    send_reply(network_reply::ok);
-}
-
-void
 proxy::on_enqueue::on_request(const network_request &req,
                               const boost::asio::const_buffer &body)
 {
     COCAINE_LOG_DEBUG(get_server()->m_service_manager->get_system_logger(),
                       "Request has accepted: %s",
                       req.get_url());
-
-    bool destination_found = false;
 
     std::string uri;
 
@@ -172,7 +162,6 @@ proxy::on_enqueue::on_request(const network_request &req,
         m_application = std::move(*app);
         m_event = std::move(*event);
         uri = req.get_url();
-        destination_found = true;
     } else {
         // Parse url to extract application name and event (in format http://host/application/event[?/]...).
         size_t start = req.get_url().find('/');
@@ -185,12 +174,11 @@ proxy::on_enqueue::on_request(const network_request &req,
                                req.get_url().find('?', start + 1));
                 m_event = req.get_url().substr(start + 1, end - start - 1);
                 uri = req.get_url().substr(std::min(end, req.get_url().size()));
-                destination_found = true;
             }
         }
     }
 
-    if (destination_found) {
+    if (!m_application.empty() && !m_event.empty()) {
         COCAINE_LOG_DEBUG(get_server()->m_service_manager->get_system_logger(),
                           "Request '%s' will be sent to application '%s' with event '%s'.",
                           req.get_url(),
@@ -302,6 +290,8 @@ proxy::on_enqueue::on_request(const network_request &req,
                                 m_event,
                                 m_application);
         }
+    } else if (m_application == "ping") {
+        send_reply(network_reply::ok);
     } else {
         COCAINE_LOG_INFO(get_server()->m_service_manager->get_system_logger(),
                          "Unable to extract destination from headers or from url '%s'.",
