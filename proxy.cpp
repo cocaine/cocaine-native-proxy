@@ -290,7 +290,7 @@ proxy::on_enqueue::on_request(const network_request &req,
                                 m_event,
                                 m_application);
         }
-    } else if (m_application == "ping") {
+    } else if (req.get_url() == "/ping" || req.get_url() == "/ping/") {
         send_reply(network_reply::ok);
     } else {
         COCAINE_LOG_INFO(get_server()->m_service_manager->get_system_logger(),
