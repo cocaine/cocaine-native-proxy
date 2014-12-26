@@ -38,12 +38,19 @@ do_start()
 
        ARGS=" -c $conf"
        ulimit -n 65000; start-stop-daemon -S -p $PIDFILE -b -m -u $USER -d $CONFIG_DIR --exec $DAEMON -- $ARGS
-       
-       if [ $? -ne 0 ]; 
-       then
+       if [ $? -ne 0 ]; then
              echo "FAIL"
+             return 1
+       fi
+
+       pid=$(cat $PIDFILE 2>/dev/null)
+       echo -n ' ..... '
+       sleep 0.5
+       if kill -0 $pid 2>/dev/null
+       then
+            echo "OK"
        else
-             echo "OK"
+            echo "FAIL"
        fi
     done
 }

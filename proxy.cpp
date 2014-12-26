@@ -140,8 +140,11 @@ proxy::initialize(const rapidjson::Value &config) {
 }
 
 proxy::~proxy() {
-    COCAINE_LOG_INFO(m_service_manager->get_system_logger(),
-                     "Proxy will be stopped now.");
+    // in case of malformed config it could be uninitialized
+    if (m_service_manager) {
+        COCAINE_LOG_INFO(m_service_manager->get_system_logger(),
+                         "Proxy will be stopped now.");
+    }
 
     m_service_manager.reset();
 }
