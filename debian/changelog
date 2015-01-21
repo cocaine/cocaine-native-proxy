@@ -1,3 +1,9 @@
+cocaine-native-proxy (0.11.3.0) unstable; urgency=low
+
+  * Update to thevoid 0.7.
+
+ -- Danil Osherov <shindo@yandex-team.ru>  Wed, 21 Jan 2015 12:00:00 +0400
+
 cocaine-native-proxy (0.11.2.1) unstable; urgency=low
 
   * Fixed a leak of client connections.
