@@ -101,7 +101,7 @@ public:
 
         virtual
         void
-        on_request(const ioremap::swarm::http_request &req,
+        on_request(const ioremap::thevoid::http_request &req,
                    const boost::asio::const_buffer &buffer);
 
         const std::string&
@@ -125,7 +125,7 @@ public:
     {
         virtual
         void
-        on_request(const ioremap::swarm::http_request &req,
+        on_request(const ioremap::thevoid::http_request &req,
                    const boost::asio::const_buffer &buffer);
     };
 

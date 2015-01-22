@@ -41,8 +41,6 @@
 #include <unistd.h>
 #include <csignal>
 
-using namespace ioremap::swarm;
-using namespace ioremap::thevoid;
 using namespace cocaine::proxy;
 
 namespace ph = std::placeholders;
@@ -146,14 +144,14 @@ proxy::~proxy() {
 }
 
 void
-proxy::on_ping::on_request(const http_request & /*request*/,
+proxy::on_ping::on_request(const ioremap::thevoid::http_request & /*request*/,
                            const boost::asio::const_buffer & /*body*/)
 {
-    send_reply(http_response::ok);
+    send_reply(ioremap::thevoid::http_response::ok);
 }
 
 void
-proxy::on_enqueue::on_request(const http_request &req,
+proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                               const boost::asio::const_buffer &body)
 {
     COCAINE_LOG_DEBUG(server()->m_service_manager->get_system_logger(),
@@ -219,7 +217,7 @@ proxy::on_enqueue::on_request(const http_request &req,
                     if (e.code().category() == cf::service_client_category() &&
                         e.code().value() == static_cast<int>(cf::service_errc::not_found))
                     {
-                        get_reply()->send_error(http_response::not_found);
+                        reply()->send_error(ioremap::thevoid::http_response::not_found);
 
                         COCAINE_LOG_INFO(server()->m_service_manager->get_system_logger(),
                                          "Application '%s' not found in the cloud. Url - '%s'.",
@@ -228,12 +226,12 @@ proxy::on_enqueue::on_request(const http_request &req,
                     } else if (e.code().category() == cf::service_client_category() &&
                                e.code().value() == static_cast<int>(cf::service_errc::not_connected))
                     {
-                        get_reply()->send_error(http_response::bad_gateway);
+                        reply()->send_error(ioremap::thevoid::http_response::bad_gateway);
 
                         COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                             "Unable to connect to the locator. How have i logged it? WTF?!");
                     } else {
-                        get_reply()->send_error(http_response::internal_server_error);
+                        reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
                         COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                             "Error has occurred while connecting to application '%s' (url - '%s'): %s; code - %d",
@@ -245,7 +243,7 @@ proxy::on_enqueue::on_request(const http_request &req,
 
                     return;
                 } catch (const std::exception& e) {
-                    get_reply()->send_error(http_response::internal_server_error);
+                    reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
                     COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                         "Error has occurred while connecting to application '%s' (url - '%s'): %s",
@@ -255,7 +253,7 @@ proxy::on_enqueue::on_request(const http_request &req,
 
                     return;
                 } catch (...) {
-                    get_reply()->send_error(http_response::internal_server_error);
+                    reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
                     COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                         "Unknown error has occurred while connecting to application '%s' (url - '%s')",
@@ -287,7 +285,7 @@ proxy::on_enqueue::on_request(const http_request &req,
                 )
             ).redirect(std::make_shared<proxy::response_stream>(shared_from_this()));
         } catch (const std::exception& e) {
-            get_reply()->send_error(http_response::internal_server_error);
+            reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
             COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                 "Error has occurred while enqueue event '%s' to application '%s': %s",
@@ -295,7 +293,7 @@ proxy::on_enqueue::on_request(const http_request &req,
                                 m_application,
                                 e.what());
         } catch (...) {
-            get_reply()->send_error(http_response::internal_server_error);
+            reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
             COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                 "Unknown error has occurred while enqueue event '%s' to application '%s'",
@@ -307,11 +305,11 @@ proxy::on_enqueue::on_request(const http_request &req,
                          "Unable to extract destination from headers or from url '%s'.",
                          req.url().to_string());
 
-        get_reply()->send_error(http_response::not_found);
+        reply()->send_error(ioremap::thevoid::http_response::not_found);
     }
 }
 
-proxy::response_stream::response_stream(const std::shared_ptr<on_enqueue>& req) :
+proxy::response_stream::response_stream(const std::shared_ptr<proxy::on_enqueue>& req) :
     m_logger(req->server()->m_service_manager->get_system_logger()),
     m_request(req),
     m_body(false),
@@ -343,7 +341,7 @@ proxy::response_stream::error(const std::exception_ptr& e,
                 std::rethrow_exception(e);
             } catch (const cf::service_error_t& e) {
                 if (e.code().category() == cf::service_response_category()) {
-                    m_request->get_reply()->send_error(http_response::internal_server_error);
+                    m_request->reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
                     COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
                                         "Application '%s' returned error on event '%s': %s; code - %d.",
@@ -352,26 +350,26 @@ proxy::response_stream::error(const std::exception_ptr& e,
                                         e.what(),
                                         e.code().value());
                 } else if (e.code().value() == static_cast<int>(cf::service_errc::not_found)) {
-                    m_request->get_reply()->send_error(http_response::not_found);
+                    m_request->reply()->send_error(ioremap::thevoid::http_response::not_found);
 
                     COCAINE_LOG_INFO(m_request->server()->m_service_manager->get_system_logger(),
                                      "Application '%s' not found in cloud.",
                                      m_request->app());
                 } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
-                    m_request->get_reply()->send_error(http_response::bad_gateway);
+                    m_request->reply()->send_error(ioremap::thevoid::http_response::bad_gateway);
 
                     COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
                                         "Unable to connect to application '%s'.",
                                         m_request->app());
                 } else if (e.code().value() == static_cast<int>(cf::service_errc::timeout)) {
-                    m_request->get_reply()->send_error(http_response::gateway_timeout);
+                    m_request->reply()->send_error(ioremap::thevoid::http_response::gateway_timeout);
 
                     COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
                                         "Request '%s' to application '%s' has timed out.",
                                         m_request->event(),
                                         m_request->app());
                 } else {
-                    m_request->get_reply()->send_error(http_response::internal_server_error);
+                    m_request->reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
                     COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
                                         "Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
@@ -383,7 +381,7 @@ proxy::response_stream::error(const std::exception_ptr& e,
 
                 return;
             } catch (const std::exception& e) {
-                m_request->get_reply()->send_error(ioremap::swarm::http_response::internal_server_error);
+                m_request->reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
 
                 COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
                                     "Internal error has occurred while processing event '%s' of application '%s': %s",
@@ -436,15 +434,15 @@ proxy::response_stream::close(const boost::system::error_code& ec,
 
         if (ec) {
             m_request->send_data(std::string(),
-                                 std::bind(&reply_stream::close, m_request->get_reply(), ec));
+                                 std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), ec));
         } else if (m_body) {
             if (m_chunked) {
                 m_request->send_data(std::string("0\r\n\r\n"),
-                                     std::bind(&reply_stream::close, m_request->get_reply(), std::placeholders::_1));
+                                     std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
             } else if (m_content_length != 0) {
                 m_request->send_data(std::string(), std::bind(
-                    &reply_stream::close,
-                    m_request->get_reply(),
+                    &ioremap::thevoid::reply_stream::close,
+                    m_request->reply(),
                     boost::system::error_code(boost::system::linux_error::remote_io_error)
                 ));
                 COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
@@ -453,12 +451,12 @@ proxy::response_stream::close(const boost::system::error_code& ec,
                                     m_request->event());
             } else {
                 m_request->send_data(std::string(),
-                                     std::bind(&reply_stream::close, m_request->get_reply(), std::placeholders::_1));
+                                     std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
             }
         } else {
             m_request->send_data(std::string(), std::bind(
-                &reply_stream::close,
-                m_request->get_reply(),
+                &ioremap::thevoid::reply_stream::close,
+                m_request->reply(),
                 boost::system::error_code(boost::system::linux_error::remote_io_error)
             ));
         }
@@ -488,7 +486,7 @@ proxy::response_stream::write_headers(std::string&& packed,
         cf::http_headers_t headers;
         std::tie(code, headers) = cf::unpack<std::tuple<int, cf::http_headers_t>>(packed);
 
-        ioremap::swarm::http_response reply;
+        ioremap::thevoid::http_response reply;
         reply.set_code(code);
         reply.set_headers(headers.data());
 
@@ -574,5 +572,5 @@ int main(int argc,
     sigaddset(&signals, SIGPIPE);
     sigprocmask(SIG_BLOCK, &signals, nullptr);
 
-    return run_server<proxy>(argc, argv);
+    return ioremap::thevoid::run_server<proxy>(argc, argv);
 }
