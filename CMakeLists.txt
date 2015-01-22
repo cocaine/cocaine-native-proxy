@@ -3,7 +3,7 @@ PROJECT(COCAINE-NATIVE-PROXY)
 
 SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-FIND_PACKAGE(Boost 1.40.0 REQUIRED COMPONENTS system)
+FIND_PACKAGE(Boost 1.40.0 REQUIRED COMPONENTS system thread)
 
 INCLUDE(cmake/locate_library.cmake)
 
@@ -40,6 +40,7 @@ TARGET_LINK_LIBRARIES(cocaine-native-proxy
     ev
     msgpack
     boost_system
+    boost_thread
     -pthread)
 
 SET_TARGET_PROPERTIES(cocaine-native-proxy PROPERTIES
