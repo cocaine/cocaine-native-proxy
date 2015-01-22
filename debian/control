@@ -2,7 +2,7 @@ Source: cocaine-native-proxy
 Section: utils
 Priority: extra
 Maintainer: Andrey Goryachev <bugsbunny@yandex-team.ru>
-Build-Depends: cmake, cdbs, debhelper (>= 7.0.13), cocaine-framework-native-dev (>= 0.11.0.0), libthevoid-dev (>= 0.7.2.0), libthevoid-dev (<< 0.8.0.0), libswarm-dev (>= 0.7.2.0), libswarm-dev (<< 0.8.0.0)
+Build-Depends: cmake, cdbs, debhelper (>= 7.0.13), cocaine-framework-native-dev (>= 0.11.0.0), cocaine-framework-native-dev (<< 0.12), libthevoid-dev (>= 0.7.2.0), libthevoid-dev (<< 0.8.0.0), libswarm-dev (>= 0.7.2.0), libswarm-dev (<< 0.8.0.0)
 Standards-Version: 3.9.1
 Vcs-Git: git://github.com/andrusha97/cocaine-native-proxy.git
 Vcs-Browser: https://github.com/andrusha97/cocaine-native-proxy
