@@ -179,8 +179,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
             if (end != std::string::npos) {
                 m_application = path.substr(start + 1, end - start - 1);
                 start = end;
-                end = std::min(path.find('/', start + 1),
-                               path.find('?', start + 1));
+                end = path.find_first_of("?/", start + 1);
                 m_event = path.substr(start + 1, end - start - 1);
                 uri = path.substr(std::min(end, path.size()));
                 destination_found = true;
