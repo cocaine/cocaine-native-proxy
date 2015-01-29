@@ -453,11 +453,9 @@ proxy::response_stream::close(const boost::system::error_code& ec,
                                      std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
             }
         } else {
-            m_request->send_data(std::string(), std::bind(
-                &ioremap::thevoid::reply_stream::close,
-                m_request->reply(),
-                boost::system::error_code(boost::system::linux_error::remote_io_error)
-            ));
+            // here headers haven't been sent yet
+            // so send reply to client
+            m_request->send_reply(boost::system::linux_error::remote_io_error);
         }
 
         m_request.reset();
