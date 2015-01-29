@@ -1,3 +1,13 @@
+cocaine-native-proxy (0.11.5.0) unstable; urgency=low
+
+  * depends on thevoid >= 0.7.3.0.
+  * use send_reply() instead of send_error().
+  * rewritten check on closed() condition.
+  * manually mark closed flag and reset request after sending
+    reply in case of error.
+
+ -- Danil Osherov <shindo@yandex-team.ru>  Tue, 03 Feb 2015 18:00:00 +0400
+
 cocaine-native-proxy (0.11.4.0) unstable; urgency=low
 
   * Depends on cocaine << 0.12.
