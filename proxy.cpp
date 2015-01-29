@@ -439,8 +439,10 @@ proxy::response_stream::close(const boost::system::error_code& ec,
     m_closed = true;
 
     if (ec) {
-        m_request->send_data(std::string(),
-                             std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), ec));
+        // close() method is called with "non-empty" error code
+        // only in case of failed write.
+        // In this case thevoid closes connection.
+
     } else if (m_body) {
         if (m_chunked) {
             m_request->send_data(std::string("0\r\n\r\n"),
