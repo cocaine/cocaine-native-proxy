@@ -383,7 +383,6 @@ proxy::response_stream::error(const std::exception_ptr& e,
                                     e.code().value());
             }
 
-            return;
         } catch (const std::exception& e) {
             m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
 
@@ -393,6 +392,10 @@ proxy::response_stream::error(const std::exception_ptr& e,
                                 m_request->app(),
                                 e.what());
         }
+
+        // reply has been sent, mark stream as closed and remove request
+        m_closed = true;
+        m_request.reset();
     } else {
         try {
             std::rethrow_exception(e);
@@ -424,8 +427,12 @@ proxy::response_stream::error(const std::exception_ptr& e,
                                 m_request->app(),
                                 e.what());
         }
+
+        // headers have been sent before.
+        // close() with empty error will send response completion
+        // and close reply stream.
+        close(boost::system::error_code(), guard);
     }
-    close(boost::system::error_code(), guard);
 }
 
 void
