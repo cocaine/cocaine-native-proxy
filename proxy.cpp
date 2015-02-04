@@ -179,8 +179,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
             if (end != std::string::npos) {
                 m_application = path.substr(start + 1, end - start - 1);
                 start = end;
-                end = std::min(path.find('/', start + 1),
-                               path.find('?', start + 1));
+                end = path.find_first_of("?/", start + 1);
                 m_event = path.substr(start + 1, end - start - 1);
                 uri = path.substr(std::min(end, path.size()));
                 destination_found = true;
@@ -217,7 +216,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                     if (e.code().category() == cf::service_client_category() &&
                         e.code().value() == static_cast<int>(cf::service_errc::not_found))
                     {
-                        reply()->send_error(ioremap::thevoid::http_response::not_found);
+                        send_reply(ioremap::thevoid::http_response::not_found);
 
                         COCAINE_LOG_INFO(server()->m_service_manager->get_system_logger(),
                                          "Application '%s' not found in the cloud. Url - '%s'.",
@@ -226,12 +225,12 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                     } else if (e.code().category() == cf::service_client_category() &&
                                e.code().value() == static_cast<int>(cf::service_errc::not_connected))
                     {
-                        reply()->send_error(ioremap::thevoid::http_response::bad_gateway);
+                        send_reply(ioremap::thevoid::http_response::bad_gateway);
 
                         COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                             "Unable to connect to the locator. How have i logged it? WTF?!");
                     } else {
-                        reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+                        send_reply(ioremap::thevoid::http_response::internal_server_error);
 
                         COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                             "Error has occurred while connecting to application '%s' (url - '%s'): %s; code - %d",
@@ -243,7 +242,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
 
                     return;
                 } catch (const std::exception& e) {
-                    reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+                    send_reply(ioremap::thevoid::http_response::internal_server_error);
 
                     COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                         "Error has occurred while connecting to application '%s' (url - '%s'): %s",
@@ -253,7 +252,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
 
                     return;
                 } catch (...) {
-                    reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+                    send_reply(ioremap::thevoid::http_response::internal_server_error);
 
                     COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                         "Unknown error has occurred while connecting to application '%s' (url - '%s')",
@@ -285,7 +284,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                 )
             ).redirect(std::make_shared<proxy::response_stream>(shared_from_this()));
         } catch (const std::exception& e) {
-            reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+            send_reply(ioremap::thevoid::http_response::internal_server_error);
 
             COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                 "Error has occurred while enqueue event '%s' to application '%s': %s",
@@ -293,7 +292,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                                 m_application,
                                 e.what());
         } catch (...) {
-            reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+            send_reply(ioremap::thevoid::http_response::internal_server_error);
 
             COCAINE_LOG_WARNING(server()->m_service_manager->get_system_logger(),
                                 "Unknown error has occurred while enqueue event '%s' to application '%s'",
@@ -305,7 +304,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                          "Unable to extract destination from headers or from url '%s'.",
                          req.url().to_string());
 
-        reply()->send_error(ioremap::thevoid::http_response::not_found);
+        send_reply(ioremap::thevoid::http_response::not_found);
     }
 }
 
@@ -321,13 +320,15 @@ proxy::response_stream::response_stream(const std::shared_ptr<proxy::on_enqueue>
 void
 proxy::response_stream::write(std::string&& chunk) {
     std::unique_lock<std::mutex> guard(m_access_mutex);
-    if (!closed()) {
-        if (!m_body) {
-            write_headers(std::move(chunk), guard);
-            m_body = true;
-        } else {
-            write_body(std::move(chunk), guard);
-        }
+    if (closed()) {
+        return;
+    }
+
+    if (!m_body) {
+        write_headers(std::move(chunk), guard);
+        m_body = true;
+    } else {
+        write_body(std::move(chunk), guard);
     }
 }
 
@@ -335,92 +336,101 @@ void
 proxy::response_stream::error(const std::exception_ptr& e,
                               const std::unique_lock<std::mutex>& guard)
 {
-    if (!closed()) {
-        if (!m_body) {
-            try {
-                std::rethrow_exception(e);
-            } catch (const cf::service_error_t& e) {
-                if (e.code().category() == cf::service_response_category()) {
-                    m_request->reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+    if (closed()) {
+        return;
+    }
 
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Application '%s' returned error on event '%s': %s; code - %d.",
-                                        m_request->app(),
-                                        m_request->event(),
-                                        e.what(),
-                                        e.code().value());
-                } else if (e.code().value() == static_cast<int>(cf::service_errc::not_found)) {
-                    m_request->reply()->send_error(ioremap::thevoid::http_response::not_found);
-
-                    COCAINE_LOG_INFO(m_request->server()->m_service_manager->get_system_logger(),
-                                     "Application '%s' not found in cloud.",
-                                     m_request->app());
-                } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
-                    m_request->reply()->send_error(ioremap::thevoid::http_response::bad_gateway);
-
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Unable to connect to application '%s'.",
-                                        m_request->app());
-                } else if (e.code().value() == static_cast<int>(cf::service_errc::timeout)) {
-                    m_request->reply()->send_error(ioremap::thevoid::http_response::gateway_timeout);
-
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Request '%s' to application '%s' has timed out.",
-                                        m_request->event(),
-                                        m_request->app());
-                } else {
-                    m_request->reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
-
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
-                                        m_request->event(),
-                                        m_request->app(),
-                                        e.what(),
-                                        e.code().value());
-                }
-
-                return;
-            } catch (const std::exception& e) {
-                m_request->reply()->send_error(ioremap::thevoid::http_response::internal_server_error);
+    if (!m_body) {
+        try {
+            std::rethrow_exception(e);
+        } catch (const cf::service_error_t& e) {
+            if (e.code().category() == cf::service_response_category()) {
+                m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
 
                 COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                    "Internal error has occurred while processing event '%s' of application '%s': %s",
-                                    m_request->event(),
+                                    "Application '%s' returned error on event '%s': %s; code - %d.",
                                     m_request->app(),
-                                    e.what());
-            }
-        } else {
-            try {
-                std::rethrow_exception(e);
-            } catch (const cf::service_error_t& e) {
-                if (e.code().category() == cf::service_response_category()) {
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Application '%s' returned error while processing event '%s': %s; code - %d.",
-                                        m_request->app(),
-                                        m_request->event(),
-                                        e.what(),
-                                        e.code().value());
-                } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Connection to application '%s' has been lost while processing event '%s'.",
-                                        m_request->app(),
-                                        m_request->event());
-                } else {
-                    COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                        "Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
-                                        m_request->event(),
-                                        m_request->app(),
-                                        e.what(),
-                                        e.code().value());
-                }
-            } catch (const std::exception& e) {
+                                    m_request->event(),
+                                    e.what(),
+                                    e.code().value());
+            } else if (e.code().value() == static_cast<int>(cf::service_errc::not_found)) {
+                m_request->send_reply(ioremap::thevoid::http_response::not_found);
+
+                COCAINE_LOG_INFO(m_request->server()->m_service_manager->get_system_logger(),
+                                 "Application '%s' not found in cloud.",
+                                 m_request->app());
+            } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
+                m_request->send_reply(ioremap::thevoid::http_response::bad_gateway);
+
                 COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                    "Internal error has occurred while processing event '%s' of application '%s': %s",
+                                    "Unable to connect to application '%s'.",
+                                    m_request->app());
+            } else if (e.code().value() == static_cast<int>(cf::service_errc::timeout)) {
+                m_request->send_reply(ioremap::thevoid::http_response::gateway_timeout);
+
+                COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                    "Request '%s' to application '%s' has timed out.",
+                                    m_request->event(),
+                                    m_request->app());
+            } else {
+                m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
+
+                COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                    "Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
                                     m_request->event(),
                                     m_request->app(),
-                                    e.what());
+                                    e.what(),
+                                    e.code().value());
             }
+
+        } catch (const std::exception& e) {
+            m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
+
+            COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                "Internal error has occurred while processing event '%s' of application '%s': %s",
+                                m_request->event(),
+                                m_request->app(),
+                                e.what());
         }
+
+        // reply has been sent, mark stream as closed and remove request
+        m_closed = true;
+        m_request.reset();
+    } else {
+        try {
+            std::rethrow_exception(e);
+        } catch (const cf::service_error_t& e) {
+            if (e.code().category() == cf::service_response_category()) {
+                COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                    "Application '%s' returned error while processing event '%s': %s; code - %d.",
+                                    m_request->app(),
+                                    m_request->event(),
+                                    e.what(),
+                                    e.code().value());
+            } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
+                COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                    "Connection to application '%s' has been lost while processing event '%s'.",
+                                    m_request->app(),
+                                    m_request->event());
+            } else {
+                COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                    "Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
+                                    m_request->event(),
+                                    m_request->app(),
+                                    e.what(),
+                                    e.code().value());
+            }
+        } catch (const std::exception& e) {
+            COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                "Internal error has occurred while processing event '%s' of application '%s': %s",
+                                m_request->event(),
+                                m_request->app(),
+                                e.what());
+        }
+
+        // headers have been sent before.
+        // close() with empty error will send response completion
+        // and close reply stream.
         close(boost::system::error_code(), guard);
     }
 }
@@ -429,40 +439,42 @@ void
 proxy::response_stream::close(const boost::system::error_code& ec,
                               const std::unique_lock<std::mutex>&)
 {
-    if (!closed()) {
-        m_closed = true;
+    if (closed()) {
+        return;
+    }
 
-        if (ec) {
-            m_request->send_data(std::string(),
-                                 std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), ec));
-        } else if (m_body) {
-            if (m_chunked) {
-                m_request->send_data(std::string("0\r\n\r\n"),
-                                     std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
-            } else if (m_content_length != 0) {
-                m_request->send_data(std::string(), std::bind(
-                    &ioremap::thevoid::reply_stream::close,
-                    m_request->reply(),
-                    boost::system::error_code(boost::system::linux_error::remote_io_error)
-                ));
-                COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
-                                    "Application '%s' has returned on event '%s' less then 'content-length'",
-                                    m_request->app(),
-                                    m_request->event());
-            } else {
-                m_request->send_data(std::string(),
-                                     std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
-            }
-        } else {
+    m_closed = true;
+
+    if (ec) {
+        // close() method is called with "non-empty" error code
+        // only in case of failed write.
+        // In this case thevoid closes connection.
+
+    } else if (m_body) {
+        if (m_chunked) {
+            m_request->send_data(std::string("0\r\n\r\n"),
+                                 std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
+        } else if (m_content_length != 0) {
             m_request->send_data(std::string(), std::bind(
                 &ioremap::thevoid::reply_stream::close,
                 m_request->reply(),
                 boost::system::error_code(boost::system::linux_error::remote_io_error)
             ));
+            COCAINE_LOG_WARNING(m_request->server()->m_service_manager->get_system_logger(),
+                                "Application '%s' has returned on event '%s' less then 'content-length'",
+                                m_request->app(),
+                                m_request->event());
+        } else {
+            m_request->send_data(std::string(),
+                                 std::bind(&ioremap::thevoid::reply_stream::close, m_request->reply(), std::placeholders::_1));
         }
-
-        m_request.reset();
+    } else {
+        // here headers haven't been sent yet
+        // so send reply to client
+        m_request->send_reply(boost::system::linux_error::remote_io_error);
     }
+
+    m_request.reset();
 }
 
 void proxy::response_stream::on_error(const boost::system::error_code &ec) {
