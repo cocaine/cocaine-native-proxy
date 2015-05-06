@@ -158,6 +158,8 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                       "Request has accepted: %s",
                       req.url().to_string());
 
+    m_started = std::chrono::system_clock::now();
+
     bool destination_found = false;
 
     std::string uri;
@@ -312,9 +314,11 @@ proxy::response_stream::response_stream(const std::shared_ptr<proxy::on_enqueue>
     m_logger(req->server()->m_service_manager->get_system_logger()),
     m_request(req),
     m_body(false),
+    m_first_chunk(true),
     m_closed(false)
 {
-    // pass
+    // This object was created right after sending data to the application
+    m_sent = std::chrono::system_clock::now();
 }
 
 void
@@ -328,6 +332,15 @@ proxy::response_stream::write(std::string&& chunk) {
         write_headers(std::move(chunk), guard);
         m_body = true;
     } else {
+        if (m_first_chunk) {
+            m_first_chunk = false;
+            m_got_body_first_chunk = std::chrono::system_clock::now();
+            m_got_body_last_chunk = m_got_body_first_chunk;
+        } else {
+            // m_got_body_last_chunk time will be updated on every next chunk
+            m_got_body_last_chunk = std::chrono::system_clock::now();
+        }
+
         write_body(std::move(chunk), guard);
     }
 }
@@ -395,6 +408,7 @@ proxy::response_stream::error(const std::exception_ptr& e,
 
         // reply has been sent, mark stream as closed and remove request
         m_closed = true;
+        log_timing();
         m_request.reset();
     } else {
         try {
@@ -474,6 +488,7 @@ proxy::response_stream::close(const boost::system::error_code& ec,
         m_request->send_reply(boost::system::linux_error::remote_io_error);
     }
 
+    log_timing();
     m_request.reset();
 }
 
@@ -493,6 +508,8 @@ void
 proxy::response_stream::write_headers(std::string&& packed,
                                       const std::unique_lock<std::mutex>& guard)
 {
+    PROXY_LOG_DEBUG("Writing headers");
+    m_got_headers = std::chrono::system_clock::now();
     try {
         int code;
         cf::http_headers_t headers;
@@ -523,6 +540,7 @@ void
 proxy::response_stream::write_body(std::string&& packed,
                                    const std::unique_lock<std::mutex>& guard)
 {
+    PROXY_LOG_DEBUG("Writing body");
     try {
         std::string chunk = cf::unpack<std::string>(packed);
         if (chunk.size() != 0) {
@@ -551,6 +569,17 @@ proxy::response_stream::write_body(std::string&& packed,
     }
 }
 
+void
+proxy::response_stream::log_timing()
+{
+    typedef std::chrono::microseconds us;
+    PROXY_LOG_INFO("Request processing times: connection: %f, waiting for headers: %f us, waiting for fist body chunk: %f us, waiting for last body chunk: %f us",
+                   us(m_sent - m_request->started()).count(),
+                   us(m_got_headers - m_sent).count(),
+                   us(m_got_body_first_chunk - m_got_headers).count(),
+                   us(m_got_body_last_chunk - m_got_body_first_chunk).count());
+}
+ 
 std::map<std::string, std::string>
 proxy::get_statistics() const {
     std::map<std::string, std::string> stat;

@@ -24,8 +24,11 @@
 #include "service_pool.hpp"
 #include <cocaine/framework/services/app.hpp>
 #include <thevoid/server.hpp>
+#include <chrono>
 
 namespace cocaine { namespace proxy {
+
+typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
 class proxy :
     public ioremap::thevoid::server<proxy>
@@ -79,6 +82,9 @@ public:
         void
         on_error(const boost::system::error_code &err);
 
+        void
+        log_timing();
+
     private:
         std::weak_ptr<cocaine::framework::logger_t> m_logger;
         std::shared_ptr<on_enqueue> m_request;
@@ -86,6 +92,12 @@ public:
         bool m_chunked;
         size_t m_content_length;
         bool m_body;
+        bool m_first_chunk;
+
+        time_point_t m_sent;
+        time_point_t m_got_headers;
+        time_point_t m_got_body_first_chunk;
+        time_point_t m_got_body_last_chunk;
 
         std::atomic<bool> m_closed;
 
@@ -114,9 +126,15 @@ public:
             return m_event;
         }
 
+        const time_point_t&
+        started() const {
+            return m_started;
+        }
+
     private:
         std::string m_application;
         std::string m_event;
+        time_point_t m_started;
     };
     friend struct on_enqueue;
 
