@@ -26,6 +26,13 @@
 #include <thevoid/server.hpp>
 #include <chrono>
 
+#define PROXY_LOG(verb, ...) BH_LOG(logger(), verb, __VA_ARGS__)
+#define PROXY_LOG_ERROR(...) PROXY_LOG(SWARM_LOG_ERROR, __VA_ARGS__)
+#define PROXY_LOG_WARNING(...) PROXY_LOG(SWARM_LOG_WARNING, __VA_ARGS__)
+#define PROXY_LOG_INFO(...) PROXY_LOG(SWARM_LOG_INFO, __VA_ARGS__)
+#define PROXY_LOG_NOTICE(...) PROXY_LOG(SWARM_LOG_NOTICE, __VA_ARGS__)
+#define PROXY_LOG_DEBUG(...) PROXY_LOG(SWARM_LOG_DEBUG, __VA_ARGS__)
+
 namespace cocaine { namespace proxy {
 
 typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
@@ -85,8 +92,12 @@ public:
         void
         log_timing();
 
+        const ioremap::swarm::logger &
+        logger() {
+            return m_logger;
+        }
+
     private:
-        std::weak_ptr<cocaine::framework::logger_t> m_logger;
         std::shared_ptr<on_enqueue> m_request;
 
         bool m_chunked;
@@ -102,6 +113,8 @@ public:
         std::atomic<bool> m_closed;
 
         std::mutex m_access_mutex;
+
+        ioremap::swarm::logger m_logger;
     };
     friend struct response_stream;
 
