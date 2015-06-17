@@ -30,7 +30,8 @@ LINK_DIRECTORIES(
     ${LIBTHEVOID_LIBRARY_DIRS})
 
 ADD_EXECUTABLE(cocaine-native-proxy
-    proxy)
+    src/main
+    src/server)
 
 TARGET_LINK_LIBRARIES(cocaine-native-proxy
     cocaine-framework

@@ -1,6 +1,7 @@
 /*
     Copyright (c) 2013 Andrey Goryachev <andrey.goryachev@gmail.com>
-    Copyright (c) 2011-2013 Other contributors as noted in the AUTHORS file.
+    Copyright (c) 2015 Evgeny Safronov  <division494@gmail.com>
+    Copyright (c) 2011-2015 Other contributors as noted in the AUTHORS file.
 
     This file is part of Cocaine.
 
@@ -18,27 +19,23 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef COCAINE_NATIVE_PROXY_HPP
-#define COCAINE_NATIVE_PROXY_HPP
+#pragma once
 
-#include "service_pool.hpp"
-#include <cocaine/framework/services/app.hpp>
-#include <thevoid/server.hpp>
 #include <chrono>
 
-#define PROXY_LOG(verb, ...) BH_LOG(logger(), verb, __VA_ARGS__)
-#define PROXY_LOG_ERROR(...) PROXY_LOG(SWARM_LOG_ERROR, __VA_ARGS__)
-#define PROXY_LOG_WARNING(...) PROXY_LOG(SWARM_LOG_WARNING, __VA_ARGS__)
-#define PROXY_LOG_INFO(...) PROXY_LOG(SWARM_LOG_INFO, __VA_ARGS__)
-#define PROXY_LOG_NOTICE(...) PROXY_LOG(SWARM_LOG_NOTICE, __VA_ARGS__)
-#define PROXY_LOG_DEBUG(...) PROXY_LOG(SWARM_LOG_DEBUG, __VA_ARGS__)
+#include <thevoid/server.hpp>
+
+#include <cocaine/framework/services/app.hpp>
+
+#include "log.hpp"
+#include "service_pool.hpp"
 
 namespace cocaine { namespace proxy {
 
 typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
-class proxy :
-    public ioremap::thevoid::server<proxy>
+class server_t:
+    public ioremap::thevoid::server<server_t>
 {
 public:
     struct on_enqueue;
@@ -119,7 +116,7 @@ public:
     friend struct response_stream;
 
     struct on_enqueue :
-        public ioremap::thevoid::simple_request_stream<proxy>,
+        public ioremap::thevoid::simple_request_stream<server_t>,
         public std::enable_shared_from_this<on_enqueue>
     {
         friend struct response_stream;
@@ -128,6 +125,12 @@ public:
         void
         on_request(const ioremap::thevoid::http_request &req,
                    const boost::asio::const_buffer &buffer);
+
+        void
+        on_service(cocaine::framework::future<service_wrapper<cocaine::framework::app_service_t>>& f,
+                   const ioremap::thevoid::http_request& req,
+                   std::string uri,
+                   const std::string& buffer);
 
         const std::string&
         app() const {
@@ -152,7 +155,7 @@ public:
     friend struct on_enqueue;
 
     struct on_ping :
-        public ioremap::thevoid::simple_request_stream<proxy>
+        public ioremap::thevoid::simple_request_stream<server_t>
     {
         virtual
         void
@@ -164,7 +167,7 @@ public:
     bool
     initialize(const rapidjson::Value &config);
 
-    ~proxy();
+    ~server_t();
 
     std::map<std::string, std::string>
     get_statistics() const;
@@ -183,6 +186,4 @@ private:
 };
 
 }} // namespace cocaine::proxy
-
-#endif // COCAINE_NATIVE_PROXY_HPP
 

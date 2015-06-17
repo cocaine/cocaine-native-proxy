@@ -27,6 +27,72 @@
 
 namespace cocaine { namespace proxy {
 
+template<class T>
+class shared_future {
+    typedef cocaine::framework::promise<T> promise_type;
+    typedef cocaine::framework::future<T>  future_type;
+
+    int ready;
+    T v;
+    std::exception err;
+
+    std::deque<promise_type> queue;
+    std::mutex mutex;
+
+public:
+    shared_future() : ready(0) {}
+
+    void
+    notify_all(T v) {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        ready = 1;
+        if (queue.empty()) {
+            this->v = v;
+        } else {
+            auto copy = std::move(queue);
+            lock.unlock();
+
+            for (auto& q : copy) {
+                q.set_value(v);
+            }
+        }
+    }
+
+    void
+    notify_all(std::exception err) {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        ready = 2;
+        if (queue.empty()) {
+            this->err = err;
+        } else {
+            auto copy = std::move(queue);
+            lock.unlock();
+
+            for (auto& q : copy) {
+                q.set_exception(err);
+            }
+        }
+    }
+
+    future_type
+    get() {
+        std::unique_lock<std::mutex> lock(mutex);
+
+        if (ready == 1) {
+            return cocaine::framework::make_ready_future<T>::value(this->v);
+        } else if (ready == 2) {
+            return cocaine::framework::make_ready_future<T>::error(this->err);
+        } else {
+            promise_type pr;
+            auto f = pr.get_future();
+            queue.push_back(std::move(pr));
+            return f;
+        }
+    }
+};
+
 template<class Service>
 struct soft_killer {
     soft_killer(std::shared_ptr<Service> service) :
@@ -63,6 +129,10 @@ template<class Service>
 struct service_wrapper {
     service_wrapper() {
         // pass
+    }
+
+    operator bool() {
+        return m_killer.get() != nullptr;
     }
 
     service_wrapper(std::shared_ptr<Service> service) :
@@ -111,6 +181,7 @@ struct service_pool {
         m_reconnect_timeout(reconnect_timeout),
         m_manager(manager),
         m_service_constructor(std::bind(&service_pool::construct<Args...>, this, request_timeout, args...)),
+        m_service_async_constructor(std::bind(&service_pool::construct_async<Args...>, this, request_timeout, args...)),
         m_next(0)
     {
         m_connections.reserve(size);
@@ -124,6 +195,8 @@ struct service_pool {
         for (size_t i = 0; i < size; ++i) {
             m_next_reconnects.push_back(now + m_reconnect_timeout + rand() % m_reconnect_timeout);
         }
+
+        m_futures.resize(size);
     }
 
     service_pool(service_pool&& other) :
@@ -143,8 +216,8 @@ struct service_pool {
         }
     }
 
-    service_wrapper<Service>
-    operator->();
+    cocaine::framework::future<service_wrapper<Service>>
+    get();
 
     size_t
     connected_clients() const {
@@ -170,19 +243,33 @@ private:
         return s;
     }
 
+    template<class... Args>
+    framework::future<std::shared_ptr<Service>>
+    construct_async(float timeout, const Args&... args) {
+        auto manager = m_manager.lock();
+        auto future = manager->get_service_async<Service>(args...);
+        return future.then([&](framework::future<std::shared_ptr<Service>>& f) -> std::shared_ptr<Service> {
+            auto s = f.get();
+            s->set_timeout(timeout);
+            return s;
+        });
+    }
+
 private:
     unsigned int m_reconnect_timeout;
     std::weak_ptr<cocaine::framework::service_manager_t> m_manager;
     std::function<std::shared_ptr<Service>()> m_service_constructor;
+    std::function<cocaine::framework::future<std::shared_ptr<Service>>()> m_service_async_constructor;
     std::vector<service_wrapper<Service>> m_connections;
+    std::vector<std::shared_ptr<shared_future<service_wrapper<Service>>>> m_futures;
     std::vector<time_t> m_next_reconnects;
     size_t m_next;
     mutable std::mutex m_connections_lock;
 };
 
 template<class Service>
-service_wrapper<Service>
-service_pool<Service>::operator->() {
+cocaine::framework::future<service_wrapper<Service>>
+service_pool<Service>::get() {
     // reconnect after timeout
     try {
         time_t now = time(0);
@@ -196,7 +283,22 @@ service_pool<Service>::operator->() {
             std::unique_lock<std::mutex> lock(m_connections_lock);
             if (m_next_reconnects[it] < now) {
                 m_next_reconnects[it] = now + m_reconnect_timeout + rand() % m_reconnect_timeout;
-                m_connections[it] = service_wrapper<Service>(m_service_constructor());
+                m_connections[it] = service_wrapper<Service>();
+                m_futures[it] = std::make_shared<shared_future<service_wrapper<Service>>>();
+                lock.unlock();
+
+                m_service_async_constructor().then([=](cocaine::framework::future<std::shared_ptr<Service>>& f) {
+                    // WARNING: Reference unsafe.
+                    std::unique_lock<std::mutex> lock(m_connections_lock);
+                    try {
+                        m_connections[it] = f.get();
+                        m_futures[it]->notify_all(m_connections[it]);
+                    } catch (const std::exception& err) {
+                        // Leave empty. Force to reconnect on next request.
+                        m_next_reconnects[it] = 0;
+                        m_futures[it]->notify_all(err);
+                    }
+                });
                 ++reconnected;
             }
             it = (it + 1) % m_connections.size();
@@ -210,17 +312,19 @@ service_pool<Service>::operator->() {
 
     size_t old_next = m_next;
 
+    // select first connected service
     do {
         service_wrapper<Service> c = m_connections[m_next];
         m_next = (m_next + 1) % m_connections.size();
-        if (c->status() == cocaine::framework::service_status::connected) {
-            return c;
+        if (c && c->status() == cocaine::framework::service_status::connected) {
+            return cocaine::framework::make_ready_future<service_wrapper<Service>>::value(c);
         }
     } while (m_next != old_next);
 
     m_next = (old_next + 1) % m_connections.size();
 
-    return m_connections[old_next];
+    // not found.
+    return m_futures[old_next]->get();
 }
 
 }} // namespace cocaine::proxy

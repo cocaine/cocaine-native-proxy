@@ -18,7 +18,7 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "proxy.hpp"
+#include "server.hpp"
 
 #include <swarm/url.hpp>
 
@@ -47,7 +47,7 @@ namespace ph = std::placeholders;
 namespace cf = cocaine::framework;
 
 bool
-proxy::initialize(const rapidjson::Value &config) {
+server_t::initialize(const rapidjson::Value &config) {
     if (!config.HasMember("locators")) {
         std::cerr << "'locators' field is missed in config. You should specify locators as a list of strings in format 'host:port'." << std::endl;
         return false;
@@ -108,7 +108,7 @@ proxy::initialize(const rapidjson::Value &config) {
 
     m_service_manager = cf::service_manager_t::create(unpacked_locators, logging_prefix, threads_num);
 
-    PROXY_LOG_INFO("Proxy has successfully started.");
+    CP_INFO("Proxy has successfully started.");
 
     m_pool_size = 10;
 
@@ -134,25 +134,25 @@ proxy::initialize(const rapidjson::Value &config) {
     return true;
 }
 
-proxy::~proxy() {
-    PROXY_LOG_INFO("Proxy will be stopped now.");
+server_t::~server_t() {
+    CP_INFO("Proxy will be stopped now.");
 
     m_services.clear();
     m_service_manager.reset();
 }
 
 void
-proxy::on_ping::on_request(const ioremap::thevoid::http_request & /*request*/,
+server_t::on_ping::on_request(const ioremap::thevoid::http_request & /*request*/,
                            const boost::asio::const_buffer & /*body*/)
 {
     send_reply(ioremap::thevoid::http_response::ok);
 }
 
 void
-proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
+server_t::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                               const boost::asio::const_buffer &body)
 {
-    PROXY_LOG_DEBUG("Request has accepted: %s",
+    CP_DEBUG("Request has accepted: %s",
                     req.url().to_string());
 
     m_started = std::chrono::system_clock::now();
@@ -187,12 +187,12 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
     }
 
     if (destination_found) {
-        PROXY_LOG_DEBUG("Request '%s' will be sent to application '%s' with event '%s'.",
+        CP_DEBUG("Request '%s' will be sent to application '%s' with event '%s'.",
                         uri,
                         m_application,
                         m_event);
 
-        proxy::clients_map_t::iterator it;
+        server_t::clients_map_t::iterator it;
         { // critical section
             std::lock_guard<std::mutex> guard(server()->m_services_mutex);
             it = server()->m_services.find(m_application);
@@ -216,7 +216,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                     {
                         send_reply(ioremap::thevoid::http_response::not_found);
 
-                        PROXY_LOG_WARNING("Application '%s' not found in the cloud. Url - '%s'.",
+                        CP_WARN("Application '%s' not found in the cloud. Url - '%s'.",
                                           m_application,
                                           req.url().to_string());
                     } else if (e.code().category() == cf::service_client_category() &&
@@ -224,11 +224,11 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                     {
                         send_reply(ioremap::thevoid::http_response::bad_gateway);
 
-                        PROXY_LOG_ERROR("Unable to connect to the locator. How have i logged it? WTF?!");
+                        CP_ERROR("Unable to connect to the locator. How have i logged it? WTF?!");
                     } else {
                         send_reply(ioremap::thevoid::http_response::internal_server_error);
 
-                        PROXY_LOG_ERROR("Error has occurred while connecting to application '%s' (url - '%s'): %s; code - %d",
+                        CP_ERROR("Error has occurred while connecting to application '%s' (url - '%s'): %s; code - %d",
                                         m_application,
                                         req.url().to_string(),
                                         e.what(),
@@ -239,7 +239,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                 } catch (const std::exception& e) {
                     send_reply(ioremap::thevoid::http_response::internal_server_error);
 
-                    PROXY_LOG_WARNING("Error has occurred while connecting to application '%s' (url - '%s'): %s",
+                    CP_WARN("Error has occurred while connecting to application '%s' (url - '%s'): %s",
                                       m_application,
                                       req.url().to_string(),
                                       e.what());
@@ -248,7 +248,7 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
                 } catch (...) {
                     send_reply(ioremap::thevoid::http_response::internal_server_error);
 
-                    PROXY_LOG_ERROR("Unknown error has occurred while connecting to application '%s' (url - '%s')",
+                    CP_ERROR("Unknown error has occurred while connecting to application '%s' (url - '%s')",
                                     m_application,
                                     req.url().to_string());
 
@@ -257,48 +257,61 @@ proxy::on_enqueue::on_request(const ioremap::thevoid::http_request &req,
             }
         } // critical section
 
-        // send request
-        try {
-            std::string http_version = cocaine::format("%d.%d",
-                                                       req.http_major_version(),
-                                                       req.http_minor_version());
+        std::string body_string(
+            boost::asio::buffer_cast<const char*>(body),
+            boost::asio::buffer_size(body)
+        );
 
-            (*it->second)->enqueue(
-                m_event,
-                cf::http_request_t (
-                    req.method(),
-                    uri,
-                    http_version,
-                    cf::http_headers_t(req.headers().all()),
-                    std::string (
-                        boost::asio::buffer_cast<const char*>(body),
-                        boost::asio::buffer_size(body)
-                    )
-                )
-            ).redirect(std::make_shared<proxy::response_stream>(shared_from_this()));
-        } catch (const std::exception& e) {
-            send_reply(ioremap::thevoid::http_response::internal_server_error);
-
-            PROXY_LOG_WARNING("Error has occurred while enqueue event '%s' to application '%s': %s",
-                              m_event,
-                              m_application,
-                              e.what());
-        } catch (...) {
-            send_reply(ioremap::thevoid::http_response::internal_server_error);
-
-            PROXY_LOG_WARNING("Unknown error has occurred while enqueue event '%s' to application '%s'",
-                              m_event,
-                              m_application);
-        }
+        (*it->second)
+            .get()
+            .then(std::bind(&server_t::on_enqueue::on_service, shared_from_this(), ph::_1, req, uri, body_string));
     } else {
-        PROXY_LOG_ERROR("Unable to extract destination from headers or from url '%s'.",
+        CP_ERROR("Unable to extract destination from headers or from url '%s'.",
                         req.url().to_string());
 
         send_reply(ioremap::thevoid::http_response::not_found);
     }
 }
 
-proxy::response_stream::response_stream(const std::shared_ptr<proxy::on_enqueue>& req) :
+void
+server_t::on_enqueue::on_service(cocaine::framework::future<service_wrapper<cocaine::framework::app_service_t>>& f,
+                              const ioremap::thevoid::http_request& req,
+                              std::string uri,
+                              const std::string& body)
+{
+    // send request
+    try {
+        std::string http_version = cocaine::format("%d.%d",
+                                                   req.http_major_version(),
+                                                   req.http_minor_version());
+
+        f.get()->enqueue(
+            m_event,
+            cf::http_request_t (
+                req.method(),
+                uri,
+                http_version,
+                cf::http_headers_t(req.headers().all()),
+                body
+            )
+        ).redirect(std::make_shared<server_t::response_stream>(shared_from_this()));
+    } catch (const std::exception& e) {
+        send_reply(ioremap::thevoid::http_response::internal_server_error);
+
+        CP_WARN("Error has occurred while enqueue event '%s' to application '%s': %s",
+                          m_event,
+                          m_application,
+                          e.what());
+    } catch (...) {
+        send_reply(ioremap::thevoid::http_response::internal_server_error);
+
+        CP_WARN("Unknown error has occurred while enqueue event '%s' to application '%s'",
+                          m_event,
+                          m_application);
+    }
+}
+
+server_t::response_stream::response_stream(const std::shared_ptr<server_t::on_enqueue>& req) :
     m_request(req),
     m_body(false),
     m_first_chunk(true),
@@ -310,7 +323,7 @@ proxy::response_stream::response_stream(const std::shared_ptr<proxy::on_enqueue>
 }
 
 void
-proxy::response_stream::write(std::string&& chunk) {
+server_t::response_stream::write(std::string&& chunk) {
     std::unique_lock<std::mutex> guard(m_access_mutex);
     if (closed()) {
         return;
@@ -334,7 +347,7 @@ proxy::response_stream::write(std::string&& chunk) {
 }
 
 void
-proxy::response_stream::error(const std::exception_ptr& e,
+server_t::response_stream::error(const std::exception_ptr& e,
                               const std::unique_lock<std::mutex>& guard)
 {
     if (closed()) {
@@ -348,7 +361,7 @@ proxy::response_stream::error(const std::exception_ptr& e,
             if (e.code().category() == cf::service_response_category()) {
                 m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
 
-                PROXY_LOG_WARNING("Application '%s' returned error on event '%s': %s; code - %d.",
+                CP_WARN("Application '%s' returned error on event '%s': %s; code - %d.",
                                   m_request->app(),
                                   m_request->event(),
                                   e.what(),
@@ -356,23 +369,23 @@ proxy::response_stream::error(const std::exception_ptr& e,
             } else if (e.code().value() == static_cast<int>(cf::service_errc::not_found)) {
                 m_request->send_reply(ioremap::thevoid::http_response::not_found);
 
-                PROXY_LOG_WARNING("Application '%s' not found in cloud.",
+                CP_WARN("Application '%s' not found in cloud.",
                                   m_request->app());
             } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
                 m_request->send_reply(ioremap::thevoid::http_response::bad_gateway);
 
-                PROXY_LOG_ERROR("Unable to connect to application '%s'.",
+                CP_ERROR("Unable to connect to application '%s'.",
                                 m_request->app());
             } else if (e.code().value() == static_cast<int>(cf::service_errc::timeout)) {
                 m_request->send_reply(ioremap::thevoid::http_response::gateway_timeout);
 
-                PROXY_LOG_WARNING("Request '%s' to application '%s' has timed out.",
+                CP_WARN("Request '%s' to application '%s' has timed out.",
                                   m_request->event(),
                                   m_request->app());
             } else {
                 m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
 
-                PROXY_LOG_WARNING("Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
+                CP_WARN("Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
                                   m_request->event(),
                                   m_request->app(),
                                   e.what(),
@@ -382,7 +395,7 @@ proxy::response_stream::error(const std::exception_ptr& e,
         } catch (const std::exception& e) {
             m_request->send_reply(ioremap::thevoid::http_response::internal_server_error);
 
-            PROXY_LOG_WARNING("Internal error has occurred while processing event '%s' of application '%s': %s",
+            CP_WARN("Internal error has occurred while processing event '%s' of application '%s': %s",
                               m_request->event(),
                               m_request->app(),
                               e.what());
@@ -397,24 +410,24 @@ proxy::response_stream::error(const std::exception_ptr& e,
             std::rethrow_exception(e);
         } catch (const cf::service_error_t& e) {
             if (e.code().category() == cf::service_response_category()) {
-                PROXY_LOG_WARNING("Application '%s' returned error while processing event '%s': %s; code - %d.",
+                CP_WARN("Application '%s' returned error while processing event '%s': %s; code - %d.",
                                   m_request->app(),
                                   m_request->event(),
                                   e.what(),
                                   e.code().value());
             } else if (e.code().value() == static_cast<int>(cf::service_errc::not_connected)) {
-                PROXY_LOG_WARNING("Connection to application '%s' has been lost while processing event '%s'.",
+                CP_WARN("Connection to application '%s' has been lost while processing event '%s'.",
                                   m_request->app(),
                                   m_request->event());
             } else {
-                PROXY_LOG_WARNING("Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
+                CP_WARN("Internal error has occurred while processing event '%s' of application '%s': %s; code - %d.",
                                   m_request->event(),
                                   m_request->app(),
                                   e.what(),
                                   e.code().value());
             }
         } catch (const std::exception& e) {
-            PROXY_LOG_WARNING("Internal error has occurred while processing event '%s' of application '%s': %s",
+            CP_WARN("Internal error has occurred while processing event '%s' of application '%s': %s",
                               m_request->event(),
                               m_request->app(),
                               e.what());
@@ -428,7 +441,7 @@ proxy::response_stream::error(const std::exception_ptr& e,
 }
 
 void
-proxy::response_stream::close(const boost::system::error_code& ec,
+server_t::response_stream::close(const boost::system::error_code& ec,
                               const std::unique_lock<std::mutex>&)
 {
     if (closed()) {
@@ -452,7 +465,7 @@ proxy::response_stream::close(const boost::system::error_code& ec,
                 m_request->reply(),
                 boost::system::error_code(boost::system::linux_error::remote_io_error)
             ));
-            PROXY_LOG_WARNING("Application '%s' has returned on event '%s' less then 'content-length'",
+            CP_WARN("Application '%s' has returned on event '%s' less then 'content-length'",
                               m_request->app(),
                               m_request->event());
         } else {
@@ -469,9 +482,9 @@ proxy::response_stream::close(const boost::system::error_code& ec,
     m_request.reset();
 }
 
-void proxy::response_stream::on_error(const boost::system::error_code &ec) {
+void server_t::response_stream::on_error(const boost::system::error_code &ec) {
     if (ec) {
-        PROXY_LOG_ERROR("Error occurred while sending response: %s", ec.message());
+        CP_ERROR("Error occurred while sending response: %s", ec.message());
 
         std::unique_lock<std::mutex> guard(m_access_mutex);
         close(ec, guard);
@@ -479,10 +492,10 @@ void proxy::response_stream::on_error(const boost::system::error_code &ec) {
 }
 
 void
-proxy::response_stream::write_headers(std::string&& packed,
+server_t::response_stream::write_headers(std::string&& packed,
                                       const std::unique_lock<std::mutex>& guard)
 {
-    PROXY_LOG_DEBUG("Writing headers");
+    CP_DEBUG("Writing headers");
     m_got_headers = std::chrono::system_clock::now();
     try {
         int code;
@@ -511,10 +524,10 @@ proxy::response_stream::write_headers(std::string&& packed,
 }
 
 void
-proxy::response_stream::write_body(std::string&& packed,
+server_t::response_stream::write_body(std::string&& packed,
                                    const std::unique_lock<std::mutex>& guard)
 {
-    PROXY_LOG_DEBUG("Writing body");
+    CP_DEBUG("Writing body");
     try {
         std::string chunk = cf::unpack<std::string>(packed);
         if (chunk.size() != 0) {
@@ -532,7 +545,7 @@ proxy::response_stream::write_body(std::string&& packed,
                     m_content_length = 0;
                 }
 
-                PROXY_LOG_WARNING("Application '%s' has returned on event '%s' more then 'content-length'",
+                CP_WARN("Application '%s' has returned on event '%s' more then 'content-length'",
                                   m_request->app(),
                                   m_request->event());
             }
@@ -543,18 +556,18 @@ proxy::response_stream::write_body(std::string&& packed,
 }
 
 void
-proxy::response_stream::log_timing()
+server_t::response_stream::log_timing()
 {
     typedef std::chrono::microseconds us;
-    PROXY_LOG_INFO("Request processing times: connection: %f, waiting for headers: %f us, waiting for fist body chunk: %f us, waiting for last body chunk: %f us",
+    CP_INFO("Request processing times: connection: %f, waiting for headers: %f us, waiting for fist body chunk: %f us, waiting for last body chunk: %f us",
                    us(m_sent - m_request->started()).count(),
                    us(m_got_headers - m_sent).count(),
                    us(m_got_body_first_chunk - m_got_headers).count(),
                    us(m_got_body_last_chunk - m_got_body_first_chunk).count());
 }
- 
+
 std::map<std::string, std::string>
-proxy::get_statistics() const {
+server_t::get_statistics() const {
     std::map<std::string, std::string> stat;
 
     stat["memory"] = boost::lexical_cast<std::string>(m_service_manager->footprint());
@@ -575,16 +588,4 @@ proxy::get_statistics() const {
     }
 
     return stat;
-}
-
-int main(int argc,
-         char **argv)
-{
-    // Block the deprecated signals.
-    sigset_t signals;
-    sigemptyset(&signals);
-    sigaddset(&signals, SIGPIPE);
-    sigprocmask(SIG_BLOCK, &signals, nullptr);
-
-    return ioremap::thevoid::run_server<proxy>(argc, argv);
 }
