@@ -14,6 +14,8 @@ LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
 LOCATE_LIBRARY(LIBMSGPACK "msgpack.hpp" "msgpack")
 
 INCLUDE_DIRECTORIES(
+    ${CMAKE_SOURCE_DIR}/include
+
     ${Boost_INCLUDE_DIRS}
     ${LIBEV_INCLUDE_DIRS}
     ${LIBMSGPACK_INCLUDE_DIRS}
@@ -30,7 +32,10 @@ LINK_DIRECTORIES(
     ${LIBTHEVOID_LIBRARY_DIRS})
 
 ADD_EXECUTABLE(cocaine-native-proxy
-    proxy)
+    src/main
+    src/server
+    src/handler/ping
+    src/handler/enqueue)
 
 TARGET_LINK_LIBRARIES(cocaine-native-proxy
     cocaine-framework
@@ -44,7 +49,7 @@ TARGET_LINK_LIBRARIES(cocaine-native-proxy
     -pthread)
 
 SET_TARGET_PROPERTIES(cocaine-native-proxy PROPERTIES
-    COMPILE_FLAGS "-std=c++0x -W -Wall -Werror -pedantic")
+    COMPILE_FLAGS "-std=c++0x -W -Wall -pedantic")
 
 INSTALL(
     TARGETS
