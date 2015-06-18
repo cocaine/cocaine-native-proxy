@@ -378,10 +378,13 @@ enqueue_t::on_service(service_future_type& future, route_t route, thevoid::http_
         auto service = future.get();
         service->set_timeout(5.0f);
 
-        std::string http_version;
-        http_version.push_back(rq.http_major_version());
-        http_version.push_back('.');
-        http_version.push_back(rq.http_minor_version());
+        std::string http_version = cocaine::format(
+            "%d.%d",
+            rq.http_major_version(),
+            rq.http_minor_version()
+        );
+
+        CP_DEBUG("http version: %s", http_version);
 
         service->enqueue(
             route.event,
