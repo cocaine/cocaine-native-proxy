@@ -2,7 +2,8 @@
 
 #include <swarm/logger.hpp>
 
-#define CP_LOG(verbosity, ...) BH_LOG(logger(), verbosity, __VA_ARGS__)
+#define CP_LOG(verbosity, ...) \
+    BH_LOG(this->logger(), verbosity, __VA_ARGS__)("source", "proxy")
 
 #define CP_DEBUG(...)  CP_LOG(SWARM_LOG_DEBUG,   __VA_ARGS__)
 #define CP_NOTICE(...) CP_LOG(SWARM_LOG_NOTICE,  __VA_ARGS__)

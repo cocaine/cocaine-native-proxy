@@ -1,4 +1,4 @@
-#include "server.hpp"
+#include "cocaine/proxy/server.hpp"
 
 namespace {
 
