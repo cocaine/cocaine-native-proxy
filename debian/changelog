@@ -1,3 +1,15 @@
+cocaine-native-proxy (0.11.6.2~rc1) unstable; urgency=low
+
+  * Bug fix: fixed logger leak.
+
+ -- Evgeny Safronov <division494@gmail.com>  Thu, 18 Jun 2015 21:43:22 +0400
+
+cocaine-native-proxy (0.11.6.2) unstable; urgency=low
+
+  * Asynchronous connecting to the services using new service pool architecture.
+
+ -- Evgeny Safronov <division494@gmail.com>  Thu, 18 Jun 2015 20:48:15 +0400
+
 cocaine-native-proxy (0.11.6.1) unstable; urgency=low
 
   * Write all log messages via thevoid log

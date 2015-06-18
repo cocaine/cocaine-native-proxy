@@ -25,6 +25,8 @@ struct enqueue_t::response_stream_t:
     public framework::basic_stream<std::string>,
     public std::enable_shared_from_this<response_stream_t>
 {
+    const swarm::logger log;
+
     enqueue_t::route_t route;
     std::shared_ptr<enqueue_t> rq;
 
@@ -44,6 +46,7 @@ struct enqueue_t::response_stream_t:
 public:
     explicit
     response_stream_t(std::shared_ptr<enqueue_t> rq, enqueue_t::route_t route):
+        log(swarm::logger(rq->logger(), {{}})),
         route(std::move(route)),
         rq(std::move(rq)),
         state(state_t::fresh),
@@ -102,7 +105,7 @@ public:
 private:
     const swarm::logger&
     logger() const {
-        return rq->logger();
+        return log;
     }
 
     void
