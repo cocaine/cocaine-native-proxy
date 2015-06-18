@@ -313,7 +313,14 @@ private:
     }
 
     void
-    dump(const tracing_t::dump_t&) {
+    dump(const tracing_t::dump_t& data) {
+        CP_INFO("request timings: parsing request: %d us, obtaining service connection: %d us, waiting for app headers: %d us, waiting for first body chunk: %d us, waiting for entire body: %d us",
+            std::chrono::duration_cast<std::chrono::microseconds>(data.accepted - data.birth).count(),
+            std::chrono::duration_cast<std::chrono::microseconds>(data.loaded - data.accepted).count(),
+            std::chrono::duration_cast<std::chrono::microseconds>(data.fresh - data.loaded).count(),
+            std::chrono::duration_cast<std::chrono::microseconds>(data.streaming - data.fresh).count(),
+            std::chrono::duration_cast<std::chrono::microseconds>(data.closed - data.fresh).count()
+        );
     }
 };
 
